@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if no package.json
+        id: check-pkg
+        run: |
+          if [ -f package.json ]; then
+            echo "has_pkg=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_pkg=false" >> $GITHUB_OUTPUT
+            echo "::notice::No package.json yet, skipping JS/TS checks."
+          fi
+
+      - name: Setup Node.js
+        if: steps.check-pkg.outputs.has_pkg == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        if: steps.check-pkg.outputs.has_pkg == 'true'
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install dependencies
+        if: steps.check-pkg.outputs.has_pkg == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        if: steps.check-pkg.outputs.has_pkg == 'true'
+        run: pnpm lint
+
+      - name: Type check
+        if: steps.check-pkg.outputs.has_pkg == 'true'
+        run: pnpm typecheck
+
+      - name: Build
+        if: steps.check-pkg.outputs.has_pkg == 'true'
+        run: pnpm build
+
+  commit-lint:
+    name: Commit messages
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Conventional Commits
+        uses: wagoid/commitlint-github-action@v6
+        continue-on-error: true
