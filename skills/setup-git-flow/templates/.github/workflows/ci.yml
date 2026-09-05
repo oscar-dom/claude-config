@@ -1,5 +1,10 @@
 name: CI
 
+# Every job in this workflow ALWAYS runs and always reports a conclusion, even
+# when the project has no JS/Python code yet. Conditions live on the *steps*,
+# never on the job: a job skipped at job level never reports a status, and a
+# required status check that never reports blocks the PR forever.
+
 on:
   pull_request:
     branches: [main, develop]
@@ -14,15 +19,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Skip if no package.json
+      - name: Detect package.json
         id: check-pkg
         run: |
           if [ -f package.json ]; then
-            echo "has_pkg=true" >> $GITHUB_OUTPUT
+            echo "has_pkg=true" >> "$GITHUB_OUTPUT"
           else
-            echo "has_pkg=false" >> $GITHUB_OUTPUT
+            echo "has_pkg=false" >> "$GITHUB_OUTPUT"
             echo "::notice::No package.json yet, skipping JS/TS checks."
           fi
+
+      # pnpm must be installed BEFORE setup-node, otherwise `cache: 'pnpm'`
+      # fails while resolving the pnpm store path.
+      - name: Setup pnpm
+        if: steps.check-pkg.outputs.has_pkg == 'true'
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
 
       - name: Setup Node.js
         if: steps.check-pkg.outputs.has_pkg == 'true'
@@ -30,12 +43,6 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-
-      - name: Setup pnpm
-        if: steps.check-pkg.outputs.has_pkg == 'true'
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
 
       - name: Install dependencies
         if: steps.check-pkg.outputs.has_pkg == 'true'
@@ -53,15 +60,62 @@ jobs:
         if: steps.check-pkg.outputs.has_pkg == 'true'
         run: pnpm build
 
+  python-checks:
+    name: Python checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect pyproject.toml
+        id: check-py
+        run: |
+          if [ -f pyproject.toml ]; then
+            echo "has_py=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_py=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No pyproject.toml yet, skipping Python checks."
+          fi
+
+      - name: Install uv
+        if: steps.check-py.outputs.has_py == 'true'
+        uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        if: steps.check-py.outputs.has_py == 'true'
+        run: uv sync
+
+      - name: Lint (ruff)
+        if: steps.check-py.outputs.has_py == 'true'
+        run: uv run ruff check .
+
+      - name: Format check (ruff)
+        if: steps.check-py.outputs.has_py == 'true'
+        run: uv run ruff format --check .
+
+      - name: Type check (mypy)
+        if: steps.check-py.outputs.has_py == 'true'
+        run: uv run mypy .
+
+      - name: Tests (pytest)
+        if: steps.check-py.outputs.has_py == 'true'
+        run: uv run pytest
+
   commit-lint:
     name: Commit messages
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # Blocking: a commit that does not follow Conventional Commits fails the PR.
+      # With no commitlint config in the repo, the action falls back to
+      # @commitlint/config-conventional.
       - name: Validate Conventional Commits
+        if: github.event_name == 'pull_request'
         uses: wagoid/commitlint-github-action@v6
-        continue-on-error: true
