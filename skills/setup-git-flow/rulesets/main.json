@@ -24,6 +24,18 @@
     },
     {
       "type": "required_linear_history"
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": true,
+        "required_status_checks": [
+          { "context": "Lint & Type check" },
+          { "context": "Python checks" },
+          { "context": "Commit messages" }
+        ]
+      }
     }
   ],
   "bypass_actors": [
