@@ -19,6 +19,12 @@ for skill_dir in "$SKILLS_SOURCE"/*/; do
   skill_name="$(basename "$skill_dir")"
   dest="$SKILLS_TARGET/$skill_name"
 
+  # A symlink here means this machine tracks the repo live; leave it alone.
+  if [ -L "$dest" ]; then
+    echo "Skipped (linked to repo): $skill_name -> $(readlink "$dest")"
+    continue
+  fi
+
   rm -rf "$dest"
   cp -r "$skill_dir" "$dest"
   echo "Installed skill: $skill_name"
