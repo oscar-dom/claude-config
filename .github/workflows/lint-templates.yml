@@ -1,0 +1,64 @@
+name: Lint templates
+
+# The workflow templates shipped by the skills live under
+# skills/*/templates/.github/workflows/ and are never executed by this repo —
+# they only run once the skill has copied them into a real project, which is far
+# too late to discover they are broken. These jobs validate them here instead.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+env:
+  ACTIONLINT_VERSION: 1.7.12
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          curl -sSfL -o actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          tar -xzf actionlint.tar.gz actionlint
+          ./actionlint --version
+
+      - name: Lint skill workflow templates
+        run: |
+          mapfile -t files < <(
+            find skills -path '*/templates/.github/workflows/*' \
+              \( -name '*.yml' -o -name '*.yaml' \) | sort
+          )
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::No workflow templates found — did the layout change?"
+            exit 1
+          fi
+          printf 'Linting %d template(s):\n' "${#files[@]}"
+          printf '  %s\n' "${files[@]}"
+          ./actionlint -color "${files[@]}"
+
+      - name: Lint this repo's own workflows
+        run: ./actionlint -color
+
+  action-refs:
+    name: Action refs resolve
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # actionlint checks the syntax of a `uses:` line but never resolves it.
+      # This is the job that would have caught astral-sh/setup-uv@v10.
+      - name: Resolve every `uses:` ref against the GitHub API
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/check-action-refs.sh
