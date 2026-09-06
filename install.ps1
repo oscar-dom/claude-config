@@ -22,6 +22,15 @@ Get-ChildItem -Path $SkillsSource -Directory | ForEach-Object {
     $dest = Join-Path $SkillsTarget $skillName
 
     if (Test-Path $dest) {
+        $item = Get-Item $dest -Force
+        # A junction or symlink here means this machine tracks the repo live
+        # (mklink /J). Copying over it would clobber the link -- or write
+        # straight through it into the repo. Leave it alone; it is already
+        # in sync by construction.
+        if ($item.LinkType) {
+            Write-Host "Skipped (linked to repo): $skillName -> $($item.Target)" -ForegroundColor Yellow
+            return
+        }
         Remove-Item -Recurse -Force $dest
     }
     Copy-Item -Recurse -Path $_.FullName -Destination $dest
