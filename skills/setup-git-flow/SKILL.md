@@ -58,14 +58,62 @@ git init -b main                 # only if not a repo yet
 git symbolic-ref HEAD refs/heads/main   # if init named the branch master
 ```
 
-Before staging, **copy `templates/.gitignore`** if the project has no `.gitignore`
-(see the note below on why this one template cannot wait), then:
+Before staging, sort out `.gitignore` — see the note below on why this one template
+cannot wait.
+
+**If the project has no `.gitignore`:** copy `templates/.gitignore`.
+
+**If it already has one: MERGE, never overwrite.** An existing `.gitignore` is often
+the only thing keeping personal data out of the repo — local datasets, SQLite
+databases, audio recordings, model weights, scraped content. Overwriting it with the
+skill's baseline silently re-exposes all of it in the very first commit, which is
+pushed straight to a fresh remote. Keep the project's file as the base and append only
+the skill's patterns that are missing:
 
 ```bash
-git status            # ALWAYS review this first — see the warning below
+# The base copy goes OUTSIDE the repo — a .gitignore.bak left in the tree gets
+# picked up by the `git add -A` below and committed.
+BASE=$(mktemp) && cp .gitignore "$BASE"
+
+{ echo ""; echo "# ===== added by setup-git-flow ====="; } >> .gitignore
+while IFS= read -r line; do
+  [ -z "$line" ] && continue
+  case "$line" in \#*) continue;; esac
+  grep -qxF -- "$line" "$BASE" || echo "$line" >> .gitignore
+done < "<skill-path>/templates/.gitignore"   # quoted: `< <` would read as process substitution
+
+rm -f "$BASE"
+```
+
+This never rewrites or reorders an existing line, so every project entry survives.
+Two caveats: if **either** file uses negation patterns (`!foo`), order decides the
+outcome and you must merge by hand instead; and review the result for near-duplicates
+(the baseline has `Thumbs.db`, a project may already have the broader `*.db`) — they
+are harmless, just noise.
+
+**Verify before committing.** Ask git directly, rather than reading the file and
+assuming — `git check-ignore` is the authority on what is actually excluded:
+
+```bash
+# Every path here must print as ignored. Use the project's real sensitive paths
+# plus the secret patterns, e.g.:
+git check-ignore -v .env private.pem id_rsa datos/x.db recording.wav model.gguf
+
+# And the reverse: source that MUST stay trackable must print nothing.
+git check-ignore -v src/app.py README.md
+```
+
+Then stage and commit:
+
+```bash
 git add -A
+git status            # ALWAYS review this — see the warning below
 git commit -m "chore: initial commit"
 ```
+
+`git status` after `git add -A` is the last checkpoint: it lists exactly what the
+initial commit will publish. If anything sensitive appears, or anything expected is
+missing, fix `.gitignore` and re-check before committing — not after.
 
 **If the repo has no remote**, create it and push `main`:
 
@@ -84,17 +132,18 @@ If the remote exists but `main` has no upstream: `git push -u origin main`.
 
 #### ⚠️ Review `git status` before `git add -A`
 
-`git add -A` stages everything not ignored. In a project with no `.gitignore` yet that
-can mean `.env`, `*.pem`, private keys, `node_modules/`, build output or local
-databases — and the initial commit is pushed to a fresh remote immediately, so a
-secret committed here is a secret published. GitHub push protection only catches
-recognisable token formats, not arbitrary `.env` contents.
+`git add -A` stages everything not ignored. With no `.gitignore`, or with one that lost
+its entries to an overwrite, that can mean `.env`, `*.pem`, private keys, local
+databases, datasets, recordings or model weights — and the initial commit is pushed to a
+fresh remote immediately, so a secret committed here is a secret published. GitHub push
+protection only catches recognisable token formats: it will not stop a `.env`, a SQLite
+file of personal data, or a `.wav`.
 
-This is why `templates/.gitignore` is copied **before** the initial commit and rides
-along in it, even though every other template waits for its own PR (see step 6): it is
-the only one that has to exist before the first `git add -A` to do its job. If
-`git status` shows anything that should not be tracked, extend `.gitignore` and
-re-check before committing.
+This is why `.gitignore` is settled **before** the initial commit and rides along in
+it, even though every other template waits for its own PR (see step 6): it is the only
+one that has to be in place before the first `git add -A` to do its job. And it is why
+the merge above is additive — the project's own entries are protecting data the
+baseline knows nothing about, so losing them is as bad as never having the baseline.
 
 ### 2. Determine the GitHub owner/repo
 
@@ -136,7 +185,7 @@ Copy the contents of this skill's `templates/` directory into the project root, 
 - `.github/CODEOWNERS` — **must replace `@OWNER` placeholder with `@$GH_USERNAME`**
 - `.github/workflows/ci.yml`
 - `CONTRIBUTING.md` — **must replace `OWNER/REPO` placeholder if any references**
-- `.gitignore` (only add if no `.gitignore` exists, or merge with existing — see `templates/.gitignore` for the secrets-hardened baseline)
+- `.gitignore` — **already handled in step 1**, which copies or merges it before the initial commit. Nothing to do here; do not re-copy it over the merged file, that would drop the project's own entries.
 - `docs/git-cheatsheet.md` — practical day-to-day reference for humans and AIs. Place it under `docs/` if the project has that folder, otherwise at the root. `CONTRIBUTING.md` already links to it at `docs/git-cheatsheet.md` — if you put it elsewhere, fix those two links. Also reference it from `CLAUDE.md` (if it exists).
 
 ### 6. Commit and push templates via PR (do NOT push to main directly)
