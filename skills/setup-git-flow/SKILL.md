@@ -87,12 +87,13 @@ gh pr create --base develop --title "chore: set up Git Flow" --fill
 gh pr merge --squash --admin --delete-branch
 ```
 
-Then sync develop to main:
+Then sync develop to main. Note the merge method: PRs into `develop` are squashed,
+but `develop → main` uses a **merge commit** — see the merge policy note in step 6.
 
 ```bash
 git checkout develop && git pull
 gh pr create --base main --head develop --title "chore: initial Git Flow setup" --fill
-gh pr merge --squash --admin
+gh pr merge --merge --admin
 ```
 
 ### 6. Apply branch protection rulesets
@@ -102,7 +103,7 @@ Only if repo is public OR user has paid plan.
 The `rulesets/` directory in this skill contains JSON files for `main` and `develop`. Apply them:
 
 ```bash
-# For main (squash-only, conversation resolution required, linear history)
+# For main (squash + merge commit allowed, conversation resolution required)
 gh api -X POST repos/$OWNER_REPO/rulesets --input <skill-path>/rulesets/main.json
 
 # For develop (PR required, no force push, no deletion)
@@ -110,6 +111,20 @@ gh api -X POST repos/$OWNER_REPO/rulesets --input <skill-path>/rulesets/develop.
 ```
 
 Note: The rulesets use `actor_id: 5` (admin role) with `bypass_mode: pull_request` — meaning admins must still go through PRs but can self-merge.
+
+**Merge policy (both rulesets allow squash and merge commits, so the rule is a
+convention, not an enforced one — `CONTRIBUTING.md` is the source of truth):**
+
+| PR | Method |
+|----|--------|
+| `feat/*`, `fix/*`, `chore/*`, `docs/*` → `develop` | squash (`gh pr merge --squash`) |
+| `develop` → `main` (release) | merge commit (`gh pr merge --merge`) |
+
+`main` deliberately has **no** `required_linear_history` rule: that rule forbids merge
+commits, so keeping it while allowing the merge method would be contradictory — GitHub
+would show the button and then reject the merge. Releases go in as merge commits so
+`develop`'s commits become ancestors of `main`; squashing `develop → main` splits the
+two histories and makes every later release PR re-list everything before it.
 
 ### 7. Enable security features
 
@@ -200,7 +215,7 @@ After completing, report:
 - ✅ Branch protection rulesets active (or pending if private+free)
 - ✅ Security features enabled (secret scanning, push protection, dependabot)
 - ✅ Templates and CI workflow in place (`Lint & Type check`, `Python checks`, `Commit messages` required on both branches)
-- ✅ `CONTRIBUTING.md` documents the flow
+- ✅ `CONTRIBUTING.md` documents the flow, including the merge policy (squash into `develop`, merge commit for `develop → main`)
 - 📝 Future TODO: install local hooks — `pre-commit` (ruff + mypy) once `pyproject.toml` exists, husky + commitlint once `package.json` exists
 
 ## Customization options to consider

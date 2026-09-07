@@ -32,10 +32,10 @@ git branch -d feat/lo-que-sea
 ### Ramas
 
 ```
-main      ← producción (protegida, squash-only, conversaciones resueltas, historial lineal)
-  ↑ PR
+main      ← producción (protegida, conversaciones resueltas)
+  ↑ PR — merge commit
 develop   ← integración (protegida, PR required)
-  ↑ PR
+  ↑ PR — squash
 feat/xxx  ← features
 fix/xxx   ← bugfixes
 chore/xxx ← mantenimiento, deps, configs
@@ -49,8 +49,22 @@ refactor/xxx
 - ❌ Force push bloqueado.
 - ❌ Borrado de ramas bloqueado.
 - ✅ Cambios entran solo vía Pull Request.
-- ✅ `main`: solo squash merge, conversaciones del PR resueltas, historial lineal.
-- ✅ `develop`: squash o merge commit permitidos.
+- ✅ `main`: conversaciones del PR resueltas antes de mergear.
+- ✅ `main` y `develop`: squash y merge commit permitidos por el ruleset.
+
+**Qué método usar** (el ruleset permite los dos, así que esto es convención — no te lo
+va a impedir GitHub):
+
+| PR | Método |
+|----|--------|
+| `feat/*`, `fix/*`, `chore/*`, `docs/*` → `develop` | **squash** |
+| `develop` → `main` (release) | **merge commit** |
+
+El release va con merge commit porque `develop` y `main` son ramas de larga vida: un
+squash crearía en `main` un commit que no existe en `develop`, dividiendo las dos
+historias, y el siguiente PR `develop → main` volvería a listar todo lo anterior. Con
+merge commit los commits de `develop` quedan como ancestros de `main` y cada release
+solo muestra lo nuevo. Ver la política completa en `CONTRIBUTING.md`.
 
 ### Protecciones de seguridad activas
 
@@ -187,7 +201,7 @@ git push  # el PR se actualiza solo
 
 ### Mergear el PR
 
-Cuando el CI esté en verde y haya aprobación:
+Cuando el CI esté en verde y haya aprobación (PR de feature a `develop` → squash):
 
 ```bash
 gh pr merge --squash --delete-branch
@@ -207,7 +221,7 @@ Cuando hay un conjunto de features estables listas para producción:
 
 ```bash
 gh pr create --base main --head develop --title "release: vX.Y.Z" --fill
-gh pr merge --squash
+gh pr merge --merge   # merge commit, NO squash — ver "Qué método usar" arriba
 ```
 
 ---
@@ -314,7 +328,9 @@ Si eres una IA trabajando en este repo, esto es lo que necesitas saber:
 2. **Conventional Commits es obligatorio** — el CI tiene un job que valida el formato.
 3. **CODEOWNERS:** los archivos críticos requieren review del owner del repo.
 4. **Secret scanning está activo:** si intentas commitear un token, GitHub bloqueará el push.
-5. **PRs siempre a `develop`** salvo que sea una release (`develop → main`).
+5. **PRs siempre a `develop`** salvo que sea una release (`develop → main`). Mergea
+   los PRs a `develop` con squash (`gh pr merge --squash`) y los de release con merge
+   commit (`gh pr merge --merge`).
 6. **Usa `gh` CLI** (autenticado) para crear PRs, no la API directamente.
 7. **Tras mergear:** ejecuta `git checkout develop && git pull` y borra la rama local con `git branch -d`.
 8. **En Windows el path completo de gh suele ser `/c/Program Files/GitHub CLI/gh.exe`** (o `gh` si está en PATH).
