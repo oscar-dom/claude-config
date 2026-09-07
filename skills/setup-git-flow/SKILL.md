@@ -296,13 +296,46 @@ Then, in the repo:
 ```bash
 pre-commit install                 # the pre-commit hook
 pre-commit install --hook-type commit-msg   # only if a commit-msg hook is added later
-pre-commit run --all-files         # first run: builds envs and fixes existing issues
 ```
 
-The first `run` is slow (it builds each hook's environment, including a Go toolchain
-for gitleaks) and will likely rewrite files — `trailing-whitespace` and
-`end-of-file-fixer` fix in place, which shows up as a failed run with modified files.
-That is expected: re-stage and commit the fixes.
+#### `pre-commit install` succeeding proves nothing — verify with a real run
+
+`pre-commit install` only writes `.git/hooks/pre-commit`. It does **not** build any
+hook environment: that happens lazily, on the first run or the first commit. So it
+reports success on a config whose hooks cannot actually be installed, and the failure
+surfaces later, at the worst moment — see the troubleshooting entry on the gitleaks
+environment for why that moment is expensive.
+
+Always follow it with a real run, and read the exit code:
+
+```bash
+pre-commit run --all-files ; echo "exit=$?"
+```
+
+| exit | Meaning | What to do |
+|---|---|---|
+| `0` | every hook ran and passed | done — the hooks are live |
+| `1` | hooks ran and **did their job**: something failed or was fixed in place | expected on a first run; re-stage and run again until `0` |
+| `3` | pre-commit **could not build a hook environment** — the hooks never ran at all | do not report success; see below |
+
+Exit `1` is normal on a first run: `trailing-whitespace` and `end-of-file-fixer` rewrite
+files, and a run that changes files reports failure. Re-stage the fixes and run again;
+the second run should be `0`.
+
+Exit `3` is a different thing entirely, and the distinction is what matters here: the
+hooks did not run, so nothing is being checked. The output names the repo it choked on,
+under `[INFO] Installing environment for <repo>`, followed by a traceback rather than
+hook results.
+
+**If any environment fails to build, say so plainly and do not report the setup as
+complete.** Report, in the final summary, that the hooks are installed but **not
+functional**, name the hook whose environment failed, and give the user the fix from the
+troubleshooting section. A step 7 reported as green when `run --all-files` exited `3` is
+worse than one reported as failed: the user believes secrets are being scanned on every
+commit when nothing is.
+
+Only claim the hooks are live once `pre-commit run --all-files` has actually reached
+exit `0`.
 
 #### Why global and not a project dependency
 
@@ -472,7 +505,7 @@ After completing, report:
 - ✅ Security features enabled (secret scanning, push protection, dependabot)
 - ✅ Templates and CI workflow in place (`Lint & Type check`, `Python checks`, `Commit messages` required on both branches)
 - ✅ `CONTRIBUTING.md` documents the flow, including the merge policy (squash into `develop`, merge commit for `develop → main`)
-- ✅ Pre-commit hooks installed and passing (gitleaks + hygiene) — these are live now, not pending
+- ✅ Pre-commit hooks installed **and verified** (gitleaks + hygiene) — only claim this if `pre-commit run --all-files` reached exit `0`. If it exited `3`, report instead: ⚠️ hooks installed but NOT functional, name the hook whose environment failed, and note that the repo will reject commits until it is fixed (see troubleshooting)
 - ✅ Staged content scanned with gitleaks before the initial commit (or: skipped, and say why)
 - 📝 Future TODO: append the stack-specific hooks — ruff + mypy once `pyproject.toml` exists, commitlint once `package.json` exists. **Append** to `.pre-commit-config.yaml`, never overwrite it
 
@@ -496,6 +529,41 @@ When invoking this skill, the user might want variations. Ask if unclear:
 - **PR stuck on "Expected — Waiting for status to be reported"** → a required context never ran. Almost always a job-level `if` (the job is skipped, so it reports nothing) or a job renamed without updating the ruleset context.
 - **`gh: command not found`** → after install, may need new shell session or explicit PATH: `export PATH="/c/Program Files/GitHub CLI:$PATH"`.
 - **First `pre-commit run --all-files` "fails" with files modified** → expected, not an error. `trailing-whitespace` and `end-of-file-fixer` fix in place; the run reports failure because files changed. Re-stage and run again — it should be clean.
-- **gitleaks hook fails to install its environment** → the default `gitleaks` id builds from source and needs a Go toolchain reachable by pre-commit; on a locked-down or proxied machine this surfaces as a network/TLS error during "Installing environment" (e.g. `CERTIFICATE_VERIFY_FAILED`), not as a config problem. Swap the id for `gitleaks-system` (uses an already-installed `gitleaks` binary) or `gitleaks-docker`.
+- **gitleaks hook fails to install its environment → THE REPO STOPS ACCEPTING COMMITS.**
+  This is the one failure here with a consequence worse than its symptom, so it is worth
+  spelling out.
+
+  *Symptom:* during `[INFO] Installing environment for https://github.com/gitleaks/gitleaks`
+  you get a traceback instead of hook results — typically a network/TLS error such as
+  `CERTIFICATE_VERIFY_FAILED`, or a missing-Go error. The default `gitleaks` id has
+  `language: golang`: it **builds gitleaks from source** and needs a Go toolchain that
+  pre-commit can fetch or find. That is what fails on Windows, and it is not a problem
+  with the config file.
+
+  *Consequence:* once `.git/hooks/pre-commit` exists, **every `git commit` in the repo
+  runs it, and a hook whose environment cannot be built aborts the commit.** So the
+  failure is not confined to `pre-commit run` — the repo accepts no commits at all until
+  it is fixed or bypassed. It surfaces as a stack trace on an ordinary commit, which
+  reads like something unrelated broke, and it is easy to assume the commit succeeded
+  when it did not (check `git log` before reaching for `git reset`).
+
+  *Two ways out, in order of preference:*
+
+  1. **Install the gitleaks binary and use the `gitleaks-system` hook** — the real fix,
+     keeps secret scanning working. Install it (`brew install gitleaks`,
+     `winget install gitleaks`, or a release binary from
+     `github.com/gitleaks/gitleaks/releases`), confirm with `gitleaks version`, then in
+     `.pre-commit-config.yaml` change `- id: gitleaks` to `- id: gitleaks-system`, which
+     calls the installed binary and builds nothing. Re-run
+     `pre-commit run --all-files` to confirm exit `0`. (`gitleaks-docker` is the same
+     idea via a container, if Docker is available.)
+  2. **Disable the hook temporarily** — unblocks committing, at the cost of the
+     protection. Either comment out the gitleaks `repos:` entry, or run
+     `pre-commit uninstall` to remove the hook entirely. Per-commit
+     `git commit --no-verify` also gets through, but it skips *every* hook and is easy to
+     make a habit of. Whichever you pick, say clearly that secret scanning is off and
+     leave it as a TODO — this is the temporary option, not the answer.
+
+  Do not report the setup as complete while this is unresolved; see step 7.
 - **`pre-commit` not found after `uv tool install`** → the tool dir is not on PATH yet; `uv tool update-shell` and open a new shell.
 - **commitlint hook never runs** → it lives at the `commit-msg` stage, which is a separate install: `pre-commit install --hook-type commit-msg`. `pre-commit install` alone only wires the `pre-commit` stage.
