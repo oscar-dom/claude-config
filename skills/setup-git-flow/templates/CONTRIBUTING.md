@@ -8,9 +8,9 @@ Esta guía explica cómo trabajar en el repositorio.
 
 ```
 main      ← producción, intocable, protegida
-  ↑ PR (con review)
+  ↑ PR (con review) — merge commit
 develop   ← integración, protegida
-  ↑ PR (con review)
+  ↑ PR (con review) — squash
 feat/<descripcion>   ← una rama por feature
 fix/<descripcion>    ← una rama por bugfix
 chore/<descripcion>  ← mantenimiento, deps, configuración
@@ -21,6 +21,29 @@ docs/<descripcion>   ← cambios en documentación
 - **Nunca** se hace push directo a `main` o `develop`. Siempre vía Pull Request.
 - Cada cambio se desarrolla en su propia rama, partiendo de `develop`.
 - Los PRs se mergean a `develop`. Cuando hay un conjunto estable, se hace PR `develop → main` para release.
+
+### Política de merge
+
+Los rulesets de `main` y `develop` permiten **squash y merge commit**, así que GitHub
+te ofrecerá los dos botones. Cuál usar no es opcional, depende del PR:
+
+| PR | Método | Botón en GitHub |
+|----|--------|-----------------|
+| `feat/*`, `fix/*`, `chore/*`, `docs/*` → `develop` | **Squash** | "Squash and merge" |
+| `develop` → `main` (release) | **Merge commit** | "Create a merge commit" |
+
+**Por qué el release va con merge commit y no con squash:** `develop` y `main` son
+dos ramas de larga vida. Un squash de `develop → main` no mergea las ramas, crea en
+`main` un commit nuevo que no existe en `develop`, así que las dos historias quedan
+divididas: `main` nunca contiene los commits de `develop`. El efecto práctico es que
+cada PR `develop → main` siguiente vuelve a listar todo lo anterior, porque Git no
+tiene ningún ancestro común reciente para comparar. Con merge commit los commits de
+`develop` pasan tal cual a `main`, quedan como ancestros, y el siguiente release solo
+muestra lo nuevo.
+
+Dentro de una rama de feature el squash sí es lo que queremos: la rama es corta,
+desechable, y se borra tras el merge, así que colapsarla en un commit no divide
+ninguna historia y deja `develop` legible (un commit por feature).
 
 ---
 
@@ -54,7 +77,9 @@ gh pr create --base develop --fill
 
 - Espera a que CI pase (verde) y a que recibas review.
 - Si te piden cambios: haces commits adicionales en la misma rama y pusheas. El PR se actualiza solo.
-- Cuando todo esté aprobado: usa "Squash and merge" para mantener el historial limpio.
+- Cuando todo esté aprobado: usa **"Squash and merge"** (es un PR a `develop`) para
+  mantener el historial limpio. Si estás mergeando el release `develop → main`, el
+  método es **merge commit** — ver [Política de merge](#política-de-merge).
 
 ### 5. Limpiar después del merge
 
@@ -160,7 +185,10 @@ Recomendado: VS Code con extensiones:
 No pasa nada — `main` está protegida y rechazará el push. Mueves los commits a una rama nueva: `git branch fix/lo-que-sea && git reset --hard origin/main`.
 
 **¿Squash, merge o rebase?**
-Squash and merge para PRs (un commit limpio por feature en `develop` y `main`). Rebase para mantener tu rama al día con `develop`.
+Squash para los PRs de feature a `develop` (un commit limpio por feature). Merge commit
+para el release `develop → main`, para no dividir las dos historias de larga vida — ver
+[Política de merge](#política-de-merge). Rebase, solo para mantener tu rama al día con
+`develop`, nunca para mergear.
 
 **¿Qué hago si el CI falla?**
 Lee los logs en la pestaña "Checks" del PR. Si falla `lint` → corre `pnpm lint --fix`. Si falla `typecheck` → corre `pnpm typecheck`. Si es algo confuso, pregunta.
