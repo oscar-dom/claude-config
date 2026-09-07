@@ -2,6 +2,10 @@
 
 Esta guía explica cómo trabajar en el repositorio.
 
+> **Referencia rápida:** para el día a día (comandos concretos, resolver conflictos,
+> qué hacer si algo sale mal) tienes [`docs/git-cheatsheet.md`](docs/git-cheatsheet.md).
+> Esta guía es el *qué* y el *por qué*; el cheatsheet es el *cómo*.
+
 ---
 
 ## Estrategia de ramas (Git Flow ligero)
@@ -44,6 +48,9 @@ muestra lo nuevo.
 Dentro de una rama de feature el squash sí es lo que queremos: la rama es corta,
 desechable, y se borra tras el merge, así que colapsarla en un commit no divide
 ninguna historia y deja `develop` legible (un commit por feature).
+
+Los comandos concretos para cada caso están en
+[`docs/git-cheatsheet.md`](docs/git-cheatsheet.md).
 
 ---
 

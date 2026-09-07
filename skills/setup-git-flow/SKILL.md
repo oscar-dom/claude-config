@@ -22,9 +22,9 @@ Before doing anything, verify:
    - If `gh` is missing, instruct user to install: `winget install --id GitHub.cli` (Windows), `brew install gh` (macOS), or download from https://cli.github.com/
    - If not authenticated: tell user to run `gh auth login` themselves (interactive, opens browser).
 3. **Inside a git repo:** `git rev-parse --is-inside-work-tree`. If not, ask whether to `git init` first.
-4. **Has a GitHub remote:** `git remote -v`. If not, ask user to either:
-   - Create a repo via `gh repo create` (offer to do it).
-   - Add remote manually: `git remote add origin <url>`.
+4. **Has commits and a GitHub remote:** `git rev-parse --verify HEAD` and `git remote -v`.
+   Either may be missing in a brand-new project — step 1 handles both. Do not skip it:
+   the rest of the steps assume `main` exists and has an upstream.
 5. **Repo visibility for branch protection:** `gh repo view --json visibility`. Branch protection rulesets require either:
    - Public repo (free), or
    - GitHub Pro/Team/Enterprise (private repo).
@@ -35,7 +35,162 @@ Before doing anything, verify:
 
 ## Steps
 
-### 1. Determine the GitHub owner/repo
+### 1. Bootstrap: make sure `main` exists, has a commit, and has an upstream
+
+**Do this before anything else.** Every later step assumes `main` exists with an
+upstream, and the commands in them (`git checkout main`, `git pull`, `gh repo view`)
+all fail on a freshly initialised repo: with no commits there is no `main` to check
+out, no upstream to pull from, and possibly no remote to query.
+
+Check what is actually missing:
+
+```bash
+git rev-parse --is-inside-work-tree 2>/dev/null   # is it a repo?
+git rev-parse --verify HEAD 2>/dev/null           # does it have commits?
+git remote get-url origin 2>/dev/null             # does it have a remote?
+```
+
+**If the repo has no commits**, make the initial commit on `main` with the project
+content that already exists:
+
+```bash
+git init -b main                 # only if not a repo yet
+git symbolic-ref HEAD refs/heads/main   # if init named the branch master
+```
+
+Before staging, sort out `.gitignore` — see the note below on why this one template
+cannot wait.
+
+**If the project has no `.gitignore`:** copy `templates/.gitignore`.
+
+**If it already has one: MERGE, never overwrite.** An existing `.gitignore` is often
+the only thing keeping personal data out of the repo — local datasets, SQLite
+databases, audio recordings, model weights, scraped content. Overwriting it with the
+skill's baseline silently re-exposes all of it in the very first commit, which is
+pushed straight to a fresh remote. Keep the project's file as the base and append only
+the skill's patterns that are missing:
+
+```bash
+# The base copy goes OUTSIDE the repo — a .gitignore.bak left in the tree gets
+# picked up by the `git add -A` below and committed.
+BASE=$(mktemp) && cp .gitignore "$BASE"
+
+{ echo ""; echo "# ===== added by setup-git-flow ====="; } >> .gitignore
+while IFS= read -r line; do
+  [ -z "$line" ] && continue
+  case "$line" in \#*) continue;; esac
+  grep -qxF -- "$line" "$BASE" || echo "$line" >> .gitignore
+done < "<skill-path>/templates/.gitignore"   # quoted: `< <` would read as process substitution
+
+rm -f "$BASE"
+```
+
+This never rewrites or reorders an existing line, so every project entry survives.
+Two caveats: if **either** file uses negation patterns (`!foo`), order decides the
+outcome and you must merge by hand instead; and review the result for near-duplicates
+(the baseline has `Thumbs.db`, a project may already have the broader `*.db`) — they
+are harmless, just noise.
+
+**Verify before committing.** Ask git directly, rather than reading the file and
+assuming — `git check-ignore` is the authority on what is actually excluded:
+
+```bash
+# Every path here must print as ignored. Use the project's real sensitive paths
+# plus the secret patterns, e.g.:
+git check-ignore -v .env private.pem id_rsa datos/x.db recording.wav model.gguf
+
+# And the reverse: source that MUST stay trackable must print nothing.
+git check-ignore -v src/app.py README.md
+```
+
+Then stage — but do not commit yet:
+
+```bash
+git add -A
+git status            # ALWAYS review this — see the warning below
+```
+
+#### Scan the staged content with gitleaks, before the commit
+
+`.gitignore` and gitleaks protect against the same accident from two different angles,
+and neither one covers the other:
+
+| | Matches on | Catches | Misses |
+|---|---|---|---|
+| `.gitignore` | **file name / path** | `.env`, `*.pem`, `datos/`, `id_rsa` | a key written *inside* `config.py` |
+| gitleaks | **file content** | `AWS_SECRET = "AKIA…"` on line 40 of a tracked source file | nothing about names — it reads what is there |
+
+No `.gitignore` pattern will ever stop an API key hardcoded in `config.py`,
+`settings.py` or a notebook, because the filename is entirely legitimate. And this
+commit is pushed to a fresh remote immediately, so there is no later gate to catch it:
+
+```bash
+# Scans exactly what `git add -A` staged
+gitleaks git --staged --redact --verbose
+```
+
+`--redact` keeps the secret itself out of the terminal and any logs. If `gitleaks git`
+is unavailable, `gitleaks dir . --redact --verbose` scans the working tree instead
+(broader: it also reads files `.gitignore` excludes).
+
+**If gitleaks is not installed: say so and carry on — never abort the setup over it.**
+It is a defence in depth, not a prerequisite, and the hooks installed in step 7 will
+scan every commit from then on. Tell the user it was skipped and how to get it
+(`brew install gitleaks`, `winget install gitleaks`, or a release binary from
+`github.com/gitleaks/gitleaks`). If `pre-commit` happens to be installed already, you
+can borrow the skill's config without copying it yet:
+
+```bash
+pre-commit run gitleaks --all-files -c <skill-path>/templates/.pre-commit-config.yaml
+```
+
+**If gitleaks runs and reports findings, that is different: stop.** Do not commit. A
+finding here means the secret would be published by the next command. Show the user
+what was found (redacted), let them remove it from the file and rotate the credential
+if it was ever real, then re-scan. "Not installed" is a warning; "found something" is a
+full stop.
+
+Only once the scan is clean (or explicitly skipped) do you commit:
+
+```bash
+git commit -m "chore: initial commit"
+```
+
+`git status` after `git add -A` is the last checkpoint: it lists exactly what the
+initial commit will publish. If anything sensitive appears, or anything expected is
+missing, fix `.gitignore` and re-check before committing — not after.
+
+**If the repo has no remote**, create it and push `main`:
+
+```bash
+gh repo create <name> --private --source=. --remote=origin
+git push -u origin main
+```
+
+Mind the visibility you pick here: on a Free plan a **private** repo cannot have
+rulesets, so step 8 will fail with `403 Upgrade to GitHub Pro` and the repo ends up
+with no branch protection. Prerequisite 5 covers the trade-off — decide it now with the
+user rather than discovering it at step 8, since changing visibility later means
+`gh repo edit --visibility public --accept-visibility-change-consequences`.
+
+If the remote exists but `main` has no upstream: `git push -u origin main`.
+
+#### ⚠️ Review `git status` before `git add -A`
+
+`git add -A` stages everything not ignored. With no `.gitignore`, or with one that lost
+its entries to an overwrite, that can mean `.env`, `*.pem`, private keys, local
+databases, datasets, recordings or model weights — and the initial commit is pushed to a
+fresh remote immediately, so a secret committed here is a secret published. GitHub push
+protection only catches recognisable token formats: it will not stop a `.env`, a SQLite
+file of personal data, or a `.wav`.
+
+This is why `.gitignore` is settled **before** the initial commit and rides along in
+it, even though every other template waits for its own PR (see step 6): it is the only
+one that has to be in place before the first `git add -A` to do its job. And it is why
+the merge above is additive — the project's own entries are protecting data the
+baseline knows nothing about, so losing them is as bad as never having the baseline.
+
+### 2. Determine the GitHub owner/repo
 
 ```bash
 gh repo view --json nameWithOwner --jq .nameWithOwner
@@ -43,7 +198,7 @@ gh repo view --json nameWithOwner --jq .nameWithOwner
 
 Save as `OWNER_REPO` for later use in API calls.
 
-### 2. Determine the user's GitHub username
+### 3. Determine the user's GitHub username
 
 ```bash
 gh api user --jq .login
@@ -51,18 +206,20 @@ gh api user --jq .login
 
 Save as `GH_USERNAME`. Used in CODEOWNERS.
 
-### 3. Create `develop` branch
+### 4. Create `develop` branch
 
-If `develop` doesn't exist:
+Step 1 guarantees `main` exists with a commit. If `develop` doesn't exist:
 
 ```bash
 git checkout main
-git pull
+# Only pull if main tracks an upstream — in a repo bootstrapped in step 1 the
+# first push already set it, but `git pull` with no upstream fails outright.
+git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1 && git pull
 git checkout -b develop
 git push -u origin develop
 ```
 
-### 4. Copy templates
+### 5. Copy templates
 
 Copy the contents of this skill's `templates/` directory into the project root, preserving the directory structure. The templates include:
 
@@ -72,23 +229,48 @@ Copy the contents of this skill's `templates/` directory into the project root, 
 - `.github/ISSUE_TEMPLATE/config.yml` — **must replace `OWNER/REPO` placeholder with actual repo path**
 - `.github/CODEOWNERS` — **must replace `@OWNER` placeholder with `@$GH_USERNAME`**
 - `.github/workflows/ci.yml`
+- `.pre-commit-config.yaml` — language-agnostic hooks (gitleaks + hygiene). Copy as-is; the stack-specific blocks get appended later in step 11.
 - `CONTRIBUTING.md` — **must replace `OWNER/REPO` placeholder if any references**
-- `.gitignore` (only add if no `.gitignore` exists, or merge with existing — see `templates/.gitignore` for the secrets-hardened baseline)
-- `docs/git-cheatsheet.md` — practical day-to-day reference for humans and AIs. Place it under `docs/` if the project has that folder, otherwise at the root. Reference it from `CLAUDE.md` (if exists) and from `CONTRIBUTING.md`.
+- `.gitignore` — **already handled in step 1**, which copies or merges it before the initial commit. Nothing to do here; do not re-copy it over the merged file, that would drop the project's own entries.
+- `docs/git-cheatsheet.md` — practical day-to-day reference for humans and AIs. Place it under `docs/` if the project has that folder, otherwise at the root. `CONTRIBUTING.md` already links to it at `docs/git-cheatsheet.md` — if you put it elsewhere, fix those two links. Also reference it from `CLAUDE.md` (if it exists).
 
-### 5. Commit and push templates via PR (do NOT push to main directly)
+### 6. Commit and push templates via PR (do NOT push to main directly)
+
+**Project content and skill templates are two separate commits, in this order:**
+
+| What | Where it lands | When |
+|------|----------------|------|
+| The project's own code and files | initial commit on `main` | step 1 |
+| This skill's templates (`.github/`, `CONTRIBUTING.md`, `docs/`) | `chore/git-flow-setup` → PR to `develop` | this step |
+
+Keeping them separate is what makes step 1 mandatory rather than optional. This step
+stages named paths only, never `git add -A`, so in a project that already has code, any
+file not committed in step 1 is simply left untracked — and because this step ends in
+`gh pr merge --squash --admin --delete-branch`, nothing ever surfaces that omission. The
+setup reports success, the PR is green, and the project's actual source is sitting
+uncommitted in the working tree.
+
+So: commit the project's content in step 1, then the templates here. Before opening this
+PR, run `git status` once more — anything unexpected still untracked means step 1 was
+skipped or incomplete.
 
 ```bash
 git checkout -b chore/git-flow-setup
-git add .github CONTRIBUTING.md .gitignore
+git add .github CONTRIBUTING.md .gitignore .pre-commit-config.yaml docs/
 git commit -m "chore: set up Git Flow with PR templates, CI, and contribution guide"
 git push -u origin chore/git-flow-setup
 gh pr create --base develop --title "chore: set up Git Flow" --fill
 gh pr merge --squash --admin --delete-branch
 ```
 
+`docs/` and `.pre-commit-config.yaml` must both be in that `git add` — step 5 copies
+`docs/git-cheatsheet.md` and the hook config, and without them they stay untracked and
+never reach the repo. If the project has no
+`docs/` folder and you placed the cheatsheet at the root, stage `git-cheatsheet.md`
+instead.
+
 Then sync develop to main. Note the merge method: PRs into `develop` are squashed,
-but `develop → main` uses a **merge commit** — see the merge policy note in step 6.
+but `develop → main` uses a **merge commit** — see the merge policy note in step 8.
 
 ```bash
 git checkout develop && git pull
@@ -96,7 +278,47 @@ gh pr create --base main --head develop --title "chore: initial Git Flow setup" 
 gh pr merge --merge --admin
 ```
 
-### 6. Apply branch protection rulesets
+### 7. Install the pre-commit hooks
+
+Do this now, as part of the setup — not as a TODO. The base
+`.pre-commit-config.yaml` copied in step 5 is language-agnostic, so there is nothing
+to wait for: no `pyproject.toml`, no `package.json`, no code at all.
+
+**Install `pre-commit` as a global tool, not a project dependency:**
+
+```bash
+uv tool install pre-commit      # preferred
+# or: pipx install pre-commit
+```
+
+Then, in the repo:
+
+```bash
+pre-commit install                 # the pre-commit hook
+pre-commit install --hook-type commit-msg   # only if a commit-msg hook is added later
+pre-commit run --all-files         # first run: builds envs and fixes existing issues
+```
+
+The first `run` is slow (it builds each hook's environment, including a Go toolchain
+for gitleaks) and will likely rewrite files — `trailing-whitespace` and
+`end-of-file-fixer` fix in place, which shows up as a failed run with modified files.
+That is expected: re-stage and commit the fixes.
+
+#### Why global and not a project dependency
+
+In a Python project, adding `pre-commit` to the dev dependencies is a perfectly good
+choice — `uv add --dev pre-commit` pins it in `uv.lock`, so every contributor resolves
+the same version. That reproducibility is real, and worth having in a Python repo.
+
+It just cannot be *this* step's default: the skill runs on repos that may have no
+`pyproject.toml` and no `package.json`, so there is no manifest to add a dev dependency
+to, and no `uv run` to invoke it through. A global tool works the same way everywhere.
+
+So: install globally here, and if the project later turns out to be Python and the user
+wants the lockfile pinning, add it as a dev dependency *as well* and drive it with
+`uv run pre-commit` — see step 11.
+
+### 8. Apply branch protection rulesets
 
 Only if repo is public OR user has paid plan.
 
@@ -126,7 +348,7 @@ would show the button and then reject the merge. Releases go in as merge commits
 `develop`'s commits become ancestors of `main`; squashing `develop → main` splits the
 two histories and makes every later release PR re-list everything before it.
 
-### 7. Enable security features
+### 9. Enable security features
 
 ```bash
 gh api -X PATCH repos/$OWNER_REPO \
@@ -137,7 +359,7 @@ gh api -X PUT repos/$OWNER_REPO/vulnerability-alerts
 gh api -X PUT repos/$OWNER_REPO/automated-security-fixes
 ```
 
-### 8. Document the setup
+### 10. Document the setup
 
 If the project has a `CLAUDE.md` and/or `docs/progress.md`, update them with:
 - Branching strategy summary (or reference to `CONTRIBUTING.md`).
@@ -146,24 +368,30 @@ If the project has a `CLAUDE.md` and/or `docs/progress.md`, update them with:
 
 If no docs exist, just leave `CONTRIBUTING.md` as the source of truth.
 
-### 9. Local pre-commit hooks
+### 11. Stack-specific hooks (append to the base config)
 
-CI already validates lint, types, tests and commit messages. Hooks just move that
-feedback earlier. Pick the stack that matches the project:
+Steps 5 and 7 already installed the language-agnostic hooks. This step only adds the
+blocks that depend on the stack, and it is the one step here that has to wait: ruff and
+mypy need a `pyproject.toml`, commitlint needs a `package.json`.
 
-#### Python projects (default): `pre-commit` with ruff + mypy
+> **Append to `.pre-commit-config.yaml` — never replace it.** Add entries under the
+> existing `repos:` list and leave what is already there alone. Writing a fresh
+> stack-specific file over it silently deletes the gitleaks hook, which is the one hook
+> protecting against committed secrets. This is exactly the mistake the `.gitignore`
+> handling in step 1 exists to prevent, in the same shape: the file already has content
+> that the new content knows nothing about.
 
-Wait until the project has a `pyproject.toml`, then:
+Check each `rev` before writing it — they are pinned tags, not floating refs:
 
 ```bash
-uv add --dev pre-commit ruff mypy
-uv run pre-commit install
+pre-commit autoupdate    # resolves every repo in the file to its latest tag
 ```
 
-Create `.pre-commit-config.yaml` at the project root:
+#### Python projects: ruff + mypy
+
+Once `pyproject.toml` exists, append:
 
 ```yaml
-repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.6
     hooks:
@@ -177,20 +405,50 @@ repos:
       - id: mypy
 ```
 
-Check the current `rev` for each repo before writing the file (they are pinned tags,
-not floating refs) — e.g. `gh api repos/astral-sh/ruff-pre-commit/releases/latest --jq .tag_name`.
-Keep them fresh with `uv run pre-commit autoupdate`.
+The ruff and mypy versions here must match the ones the CI `Python checks` job installs
+via `uv sync`, otherwise hooks and CI will disagree — a commit passes locally and fails
+in the PR, or the reverse.
 
-The ruff and mypy versions here must match the ones the CI `Python checks` job
-installs via `uv sync`, otherwise hooks and CI will disagree.
-
-Run against the whole codebase once after installing:
+`pre-commit` is already installed globally (step 7), so nothing more is needed to run
+these. If you also want it pinned in `uv.lock` for reproducibility across contributors,
+add it as a dev dependency **in addition** and drive it through `uv`:
 
 ```bash
-uv run pre-commit run --all-files
+uv add --dev pre-commit ruff mypy
+uv run pre-commit install    # re-point the hook at the project's copy
 ```
 
-#### JS/TS projects: `husky` + `commitlint` (only once `package.json` exists)
+Then use `uv run pre-commit ...` consistently, so the lockfile version is the one that
+actually runs.
+
+#### JS/TS projects: commitlint
+
+CI already validates commit messages on PRs (the `Commit messages` job), so this only
+moves that feedback earlier, to the moment of committing.
+
+Preferred, since `pre-commit` is already installed and this needs no husky:
+
+```yaml
+  - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+    rev: v9.26.0
+    hooks:
+      - id: commitlint
+        stages: [commit-msg]
+        additional_dependencies: ["@commitlint/config-conventional"]
+```
+
+That hook runs at the `commit-msg` stage, which needs its own install:
+
+```bash
+pre-commit install --hook-type commit-msg
+```
+
+Create `commitlint.config.cjs`:
+```js
+module.exports = { extends: ['@commitlint/config-conventional'] };
+```
+
+Use `husky` instead only if the project already relies on it:
 
 ```bash
 pnpm add -D husky @commitlint/cli @commitlint/config-conventional
@@ -198,15 +456,13 @@ pnpm exec husky init
 echo "pnpm exec commitlint --edit \$1" > .husky/commit-msg
 ```
 
-And create `commitlint.config.cjs`:
-```js
-module.exports = { extends: ['@commitlint/config-conventional'] };
+Do not run both — two `commit-msg` hooks validating the same message is just noise.
+
+After appending anything, re-run everything once:
+
+```bash
+pre-commit run --all-files
 ```
-
-For a project with both, `pre-commit` can also run the commitlint hook via
-`commit-msg`, so husky is only needed if the project already relies on it.
-
-Document whichever is still pending as a TODO in `progress.md` if relevant.
 
 ## Final summary to give the user
 
@@ -216,7 +472,9 @@ After completing, report:
 - ✅ Security features enabled (secret scanning, push protection, dependabot)
 - ✅ Templates and CI workflow in place (`Lint & Type check`, `Python checks`, `Commit messages` required on both branches)
 - ✅ `CONTRIBUTING.md` documents the flow, including the merge policy (squash into `develop`, merge commit for `develop → main`)
-- 📝 Future TODO: install local hooks — `pre-commit` (ruff + mypy) once `pyproject.toml` exists, husky + commitlint once `package.json` exists
+- ✅ Pre-commit hooks installed and passing (gitleaks + hygiene) — these are live now, not pending
+- ✅ Staged content scanned with gitleaks before the initial commit (or: skipped, and say why)
+- 📝 Future TODO: append the stack-specific hooks — ruff + mypy once `pyproject.toml` exists, commitlint once `package.json` exists. **Append** to `.pre-commit-config.yaml`, never overwrite it
 
 ## Customization options to consider
 
@@ -225,6 +483,10 @@ When invoking this skill, the user might want variations. Ask if unclear:
 - **Strict CI** vs permissive: the rulesets require `Lint & Type check`, `Python checks` and `Commit messages` by default. If the user wants permissive merges, drop the `required_status_checks` rule from the ruleset JSON before applying it. If you rename a job in `ci.yml`, update the matching `context` in both rulesets — the context is the job's `name`, not its id, and a context that never reports blocks every PR.
 - **Issue templates language**: default is Spanish (since this template was authored for Spanish-speaking user). Translate to English or other if user prefers.
 - **PR template detail level**: default is medium-detail. Some teams prefer minimal.
+- **Hook strictness**: the base `.pre-commit-config.yaml` fixes files in place
+  (`trailing-whitespace`, `end-of-file-fixer`). If the user finds that intrusive on an
+  existing codebase, drop those two and keep gitleaks plus the `check-*` hooks, which
+  only report. Do not drop gitleaks.
 
 ## Troubleshooting
 
@@ -233,3 +495,7 @@ When invoking this skill, the user might want variations. Ask if unclear:
 - **CI jobs are green but empty on first push** → expected; there is no `package.json`/`pyproject.toml` yet. The steps are guarded, but every job still runs and reports, so required status checks are satisfied.
 - **PR stuck on "Expected — Waiting for status to be reported"** → a required context never ran. Almost always a job-level `if` (the job is skipped, so it reports nothing) or a job renamed without updating the ruleset context.
 - **`gh: command not found`** → after install, may need new shell session or explicit PATH: `export PATH="/c/Program Files/GitHub CLI:$PATH"`.
+- **First `pre-commit run --all-files` "fails" with files modified** → expected, not an error. `trailing-whitespace` and `end-of-file-fixer` fix in place; the run reports failure because files changed. Re-stage and run again — it should be clean.
+- **gitleaks hook fails to install its environment** → the default `gitleaks` id builds from source and needs a Go toolchain reachable by pre-commit; on a locked-down or proxied machine this surfaces as a network/TLS error during "Installing environment" (e.g. `CERTIFICATE_VERIFY_FAILED`), not as a config problem. Swap the id for `gitleaks-system` (uses an already-installed `gitleaks` binary) or `gitleaks-docker`.
+- **`pre-commit` not found after `uv tool install`** → the tool dir is not on PATH yet; `uv tool update-shell` and open a new shell.
+- **commitlint hook never runs** → it lives at the `commit-msg` stage, which is a separate install: `pre-commit install --hook-type commit-msg`. `pre-commit install` alone only wires the `pre-commit` stage.
