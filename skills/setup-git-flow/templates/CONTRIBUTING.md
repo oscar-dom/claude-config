@@ -161,21 +161,6 @@ Usamos [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## Configuración local recomendada
 
-### Hooks de Git (commitlint + husky)
-
-Una vez exista `package.json`, instalar husky para validar mensajes de commit:
-
-```bash
-pnpm add -D husky @commitlint/cli @commitlint/config-conventional
-pnpm exec husky init
-echo "pnpm exec commitlint --edit \$1" > .husky/commit-msg
-```
-
-Crear `commitlint.config.cjs`:
-```js
-module.exports = { extends: ['@commitlint/config-conventional'] };
-```
-
 ### Editor
 
 Recomendado: VS Code con extensiones:
