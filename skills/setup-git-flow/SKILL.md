@@ -73,14 +73,22 @@ the skill's patterns that are missing:
 ```bash
 # The base copy goes OUTSIDE the repo — a .gitignore.bak left in the tree gets
 # picked up by the `git add -A` below and committed.
-BASE=$(mktemp) && cp .gitignore "$BASE"
+#
+# `tr -d '\r'` on BOTH sides is load-bearing, not tidiness: these templates are
+# stored CRLF and a project's own .gitignore is usually LF. Compared raw, every
+# template pattern carries a trailing \r the project file lacks, so `grep -qxF`
+# never matches and the entire baseline gets appended, duplicates included. The
+# result still *works* — git strips the CR when it reads a pattern — which is what
+# makes it easy to miss: the file just quietly grows a second copy of every
+# entry the two files share.
+BASE=$(mktemp) && tr -d '\r' < .gitignore > "$BASE"
 
 { echo ""; echo "# ===== added by setup-git-flow ====="; } >> .gitignore
-while IFS= read -r line; do
+tr -d '\r' < "<skill-path>/templates/.gitignore" | while IFS= read -r line; do
   [ -z "$line" ] && continue
   case "$line" in \#*) continue;; esac
   grep -qxF -- "$line" "$BASE" || echo "$line" >> .gitignore
-done < "<skill-path>/templates/.gitignore"   # quoted: `< <` would read as process substitution
+done
 
 rm -f "$BASE"
 ```
@@ -347,6 +355,33 @@ When invoking this skill, the user might want variations. Ask if unclear:
 - **PR merge fails after applying rulesets** → ensure `bypass_actors` has the admin entry, otherwise even the owner can't merge.
 - **CI jobs are green but empty on first push** → expected; there is no `package.json`/`pyproject.toml` yet. The steps are guarded, but every job still runs and reports, so required status checks are satisfied.
 - **PR stuck on "Expected — Waiting for status to be reported"** → a required context never ran. Almost always a job-level `if` (the job is skipped, so it reports nothing) or a job renamed without updating the ruleset context.
+- **`Commit messages` fails with `Resource not accessible by integration`** → not a
+  malformed commit message. `wagoid/commitlint-github-action` asks the API for the list
+  of commits in the PR, and the default `GITHUB_TOKEN` is granted `contents` only, so
+  the call is refused and the job dies *before* it lints anything. The job in `ci.yml`
+  therefore carries an explicit grant:
+
+  ```yaml
+  permissions:
+    contents: read
+    pull-requests: read
+  ```
+
+  If you ever see this again, check that block survived, and check the repo's default
+  at `gh api repos/$OWNER_REPO/actions/permissions/workflow` — an org or repo set to
+  read-only workflow permissions is the usual cause.
+
+  **Why the repo's own `lint-templates.yml` cannot catch this.** actionlint reads the
+  workflow as a *document*: syntax, expression validity, runner labels, shellcheck over
+  `run:` blocks. A job with no `permissions:` block is perfectly valid YAML and
+  perfectly valid GitHub Actions — there is nothing malformed to report. What fails is
+  **authorization at run time**, which depends on the token a particular repository
+  hands the job, and that exists only once a real PR runs in a real repo. The template
+  ships here but never executes here, so a whole class of defect — anything that only
+  appears when the workflow actually runs — is invisible to the checks in this repo and
+  surfaces in the first project the skill is applied to. Treat the first PR of a fresh
+  setup as part of the test surface, and read what the checks actually report rather
+  than trusting that green templates imply a green pipeline.
 - **`gh: command not found`** → after install, may need new shell session or explicit PATH: `export PATH="/c/Program Files/GitHub CLI:$PATH"`.
 - **gitleaks not installed** → the initial commit in step 1 goes in **without a content
   scan**, and `.gitignore` does not cover the gap: no filename pattern stops an API key

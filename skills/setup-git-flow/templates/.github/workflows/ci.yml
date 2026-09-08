@@ -106,6 +106,12 @@ jobs:
   commit-lint:
     name: Commit messages
     runs-on: ubuntu-latest
+    # The action lists the PR's commits through the API, which needs an explicit
+    # grant: the default GITHUB_TOKEN is contents-only, and without this the job
+    # dies with "Resource not accessible by integration" before it lints anything.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Checkout
         if: github.event_name == 'pull_request'
