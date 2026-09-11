@@ -102,12 +102,24 @@ Two jobs, because they catch different things:
 
 ### `setup-git-flow`
 
-Sets up a complete Git Flow lite configuration in a new project:
-- `main` + `develop` branches with protection rulesets
-- PR/issue templates, CODEOWNERS
-- GitHub Actions CI (lint, typecheck, build, commitlint)
-- `CONTRIBUTING.md` and `docs/git-cheatsheet.md`
-- Conventional Commits enforcement
-- Secret scanning + Dependabot enabled
+Monta una configuracion completa de Git Flow lite en un proyecto nuevo. La skill esta
+escrita en espanol; sus instrucciones y el resumen final van en espanol.
 
-**Trigger:** ask Claude to *"set up Git Flow"*, *"replicate the Git config"*, or similar in any new project.
+- Ramas `main` + `develop` con rulesets de proteccion
+- Plantillas de PR e issues, CODEOWNERS
+- CI en GitHub Actions (lint, typecheck, build, commitlint)
+- `CONTRIBUTING.md` y `docs/git-cheatsheet.md`
+- Conventional Commits, validados y bloqueantes en el CI
+- Dependabot activado, y secret scanning donde el plan lo permite
+
+Dos cosas que hace siempre, en cada ejecucion:
+
+- **Pregunta la visibilidad del repositorio** antes de crearlo. No hay valor por
+  defecto: privado y publico tienen costes distintos (los rulesets y el secret scanning
+  son gratis en publico) y la decision es del usuario.
+- **Audita el cierre** antes de dar nada por terminado: que no queden PR abiertos,
+  commits sin empujar, ramas sin upstream ni promociones pendientes. Si queda algo, lo
+  dice y pide permiso para terminarlo en vez de reportar exito.
+
+**Disparador:** pedirle a Claude *"monta Git Flow"*, *"replica la configuracion de
+Git"*, o la forma en ingles *"set up Git Flow"*, en cualquier proyecto nuevo.

@@ -1,9 +1,10 @@
 name: CI
 
-# Every job in this workflow ALWAYS runs and always reports a conclusion, even
-# when the project has no JS/Python code yet. Conditions live on the *steps*,
-# never on the job: a job skipped at job level never reports a status, and a
-# required status check that never reports blocks the PR forever.
+# Todos los jobs de este workflow se ejecutan SIEMPRE y siempre reportan una
+# conclusion, incluso cuando el proyecto todavia no tiene codigo JS ni Python. Las
+# condiciones van en los *pasos*, nunca en el job: un job saltado a nivel de job no
+# reporta ningun estado, y un check requerido que no reporta nunca bloquea el PR
+# para siempre.
 
 on:
   pull_request:
@@ -16,10 +17,10 @@ jobs:
     name: Lint & Type check
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Clonar el repositorio
         uses: actions/checkout@v4
 
-      - name: Detect package.json
+      - name: Detectar package.json
         id: check-pkg
         run: |
           if [ -f package.json ]; then
@@ -29,22 +30,22 @@ jobs:
             echo "::notice::No package.json yet, skipping JS/TS checks."
           fi
 
-      # pnpm must be installed BEFORE setup-node, otherwise `cache: 'pnpm'`
-      # fails while resolving the pnpm store path.
-      - name: Setup pnpm
+      # pnpm tiene que instalarse ANTES de setup-node: si no, `cache: 'pnpm'`
+      # falla al resolver la ruta del almacen de pnpm.
+      - name: Preparar pnpm
         if: steps.check-pkg.outputs.has_pkg == 'true'
         uses: pnpm/action-setup@v3
         with:
           version: 9
 
-      - name: Setup Node.js
+      - name: Preparar Node.js
         if: steps.check-pkg.outputs.has_pkg == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
 
-      - name: Install dependencies
+      - name: Instalar dependencias
         if: steps.check-pkg.outputs.has_pkg == 'true'
         run: pnpm install --frozen-lockfile
 
@@ -52,11 +53,11 @@ jobs:
         if: steps.check-pkg.outputs.has_pkg == 'true'
         run: pnpm lint
 
-      - name: Type check
+      - name: Comprobacion de tipos
         if: steps.check-pkg.outputs.has_pkg == 'true'
         run: pnpm typecheck
 
-      - name: Build
+      - name: Construir
         if: steps.check-pkg.outputs.has_pkg == 'true'
         run: pnpm build
 
@@ -64,10 +65,10 @@ jobs:
     name: Python checks
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Clonar el repositorio
         uses: actions/checkout@v4
 
-      - name: Detect pyproject.toml
+      - name: Detectar pyproject.toml
         id: check-py
         run: |
           if [ -f pyproject.toml ]; then
@@ -77,13 +78,13 @@ jobs:
             echo "::notice::No pyproject.toml yet, skipping Python checks."
           fi
 
-      - name: Install uv
+      - name: Instalar uv
         if: steps.check-py.outputs.has_py == 'true'
         uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
 
-      - name: Install dependencies
+      - name: Instalar dependencias
         if: steps.check-py.outputs.has_py == 'true'
         run: uv sync
 
@@ -91,11 +92,11 @@ jobs:
         if: steps.check-py.outputs.has_py == 'true'
         run: uv run ruff check .
 
-      - name: Format check (ruff)
+      - name: Comprobacion de formato (ruff)
         if: steps.check-py.outputs.has_py == 'true'
         run: uv run ruff format --check .
 
-      - name: Type check (mypy)
+      - name: Comprobacion de tipos (mypy)
         if: steps.check-py.outputs.has_py == 'true'
         run: uv run mypy .
 
@@ -106,22 +107,22 @@ jobs:
   commit-lint:
     name: Commit messages
     runs-on: ubuntu-latest
-    # The action lists the PR's commits through the API, which needs an explicit
-    # grant: the default GITHUB_TOKEN is contents-only, and without this the job
-    # dies with "Resource not accessible by integration" before it lints anything.
+    # La action lista los commits del PR por la API, y eso necesita un permiso
+    # explicito: el GITHUB_TOKEN por defecto solo trae contents, y sin esto el job
+    # muere con "Resource not accessible by integration" antes de validar nada.
     permissions:
       contents: read
       pull-requests: read
     steps:
-      - name: Checkout
+      - name: Clonar el repositorio
         if: github.event_name == 'pull_request'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Blocking: a commit that does not follow Conventional Commits fails the PR.
-      # With no commitlint config in the repo, the action falls back to
-      # @commitlint/config-conventional.
-      - name: Validate Conventional Commits
+      # Bloqueante: un commit que no siga Conventional Commits tumba el PR.
+      # Si el repositorio no tiene configuracion de commitlint, la action usa
+      # @commitlint/config-conventional por defecto.
+      - name: Validar Conventional Commits
         if: github.event_name == 'pull_request'
         uses: wagoid/commitlint-github-action@v6
