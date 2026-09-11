@@ -1,90 +1,165 @@
 ---
 name: setup-git-flow
-description: Set up a complete Git Flow lite configuration in a new project. Use when the user asks to "set up Git", "configure Git Flow", "replicate Git config", "initialize repo with Git Flow", "set up branch protection", or starts a new project that needs branching strategy + PR templates + CI + branch protection rules. Creates main/develop branches with rulesets, PR/issue templates, CODEOWNERS, GitHub Actions CI workflow, and CONTRIBUTING.md following Conventional Commits.
+description: Monta una configuración completa de Git Flow lite en un proyecto nuevo. Úsala cuando el usuario pida "configura Git", "monta Git Flow", "replica la configuración de Git", "inicializa el repo con Git Flow", "protege las ramas", o cuando empiece un proyecto que necesite estrategia de ramas + plantillas de PR + CI + reglas de protección. También responde a las formas en inglés ("set up Git Flow", "configure git for this project", "set up branch protection"). Crea las ramas main/develop con rulesets, plantillas de PR e issues, CODEOWNERS, workflow de CI en GitHub Actions y CONTRIBUTING.md siguiendo Conventional Commits.
 ---
 
-# Setup Git Flow Skill
+# Skill: setup-git-flow
 
-Sets up a complete Git Flow lite configuration: `main` + `develop` branches with protection, PR/issue templates, CI workflow, CODEOWNERS, and contribution guide.
+Monta una configuración completa de Git Flow lite: ramas `main` + `develop` con
+protección, plantillas de PR e issues, workflow de CI, CODEOWNERS y guía de
+contribución.
 
-## When to invoke
+> Esta skill es personal y está escrita en español a propósito. Lo que nunca se traduce
+> son los **identificadores**: nombres de ramas, rutas de ficheros, comandos, y muy en
+> particular los tres `name:` de los jobs del CI, que son los `context` de los rulesets.
+> Traducir uno de esos bloquea todos los PR para siempre.
 
-- User says "set up Git Flow", "configure git for this project", "initialize repo properly", "replicate the Git setup", or similar.
-- Starting a new project where the user wants professional branching from day 1.
-- User wants to add branch protection rules and PR templates to an existing repo.
+## Cuándo invocarla
 
-## Prerequisites checks
+- El usuario dice "monta Git Flow", "configura git para este proyecto", "inicializa el
+  repo como toca", "replica la configuración de Git", o algo equivalente.
+- Se empieza un proyecto nuevo y se quiere una estrategia de ramas decente desde el
+  primer día.
+- Se quiere añadir protección de ramas y plantillas de PR a un repositorio que ya existe.
 
-Before doing anything, verify:
+## Comprobaciones previas
 
-1. **`git` available:** `git --version`
-2. **`gh` (GitHub CLI) available:** `gh --version` and `gh auth status`
-   - If `gh` is missing, instruct user to install: `winget install --id GitHub.cli` (Windows), `brew install gh` (macOS), or download from https://cli.github.com/
-   - If not authenticated: tell user to run `gh auth login` themselves (interactive, opens browser).
-3. **Inside a git repo:** `git rev-parse --is-inside-work-tree`. If not, ask whether to `git init` first.
-4. **Has commits and a GitHub remote:** `git rev-parse --verify HEAD` and `git remote -v`.
-   Either may be missing in a brand-new project — step 1 handles both. Do not skip it:
-   the rest of the steps assume `main` exists and has an upstream.
-5. **Repo visibility for branch protection:** `gh repo view --json visibility`. Branch protection rulesets require either:
-   - Public repo (free), or
-   - GitHub Pro/Team/Enterprise (private repo).
-   - If repo is private and user is on Free plan, **ask the user** before making it public:
-     - Explain implications (code visible, but secret scanning + push protection get enabled).
-     - If user agrees: `gh repo edit --visibility public --accept-visibility-change-consequences`.
-     - If user declines: skip branch protection step (continue with everything else) and document in `progress.md` that this is pending.
+Antes de hacer nada, verifica:
 
-## Steps
+1. **`git` disponible:** `git --version`
+2. **`gh` (GitHub CLI) disponible:** `gh --version` y `gh auth status`
+   - Si falta `gh`, dile al usuario cómo instalarlo: `winget install --id GitHub.cli`
+     (Windows), `brew install gh` (macOS), o desde https://cli.github.com/
+   - Si no está autenticado: que ejecute `gh auth login` él mismo (es interactivo y abre
+     el navegador).
+3. **Este directorio es su propio repositorio, no el de un padre.**
+   `git rev-parse --is-inside-work-tree` **es la pregunta equivocada**: responde "¿estoy
+   en algún sitio dentro de algún repositorio?" y devuelve `true` también cuando la
+   carpeta del proyecto simplemente cuelga de otro — un subdirectorio de un monorepo, una
+   carpeta dentro de un clon, o cualquier ancestro donde alguien ejecutó `git init` una
+   vez. Si te fías de él, el paso 1 se salta el `git init` porque cree que ya hay repo, y
+   el `git add -A` termina preparando **el árbol del padre**, no el del proyecto.
 
-### 1. Bootstrap: make sure `main` exists, has a commit, and has an upstream
+   Pregunta *cuál*, no *si*:
 
-**Do this before anything else.** Every later step assumes `main` exists with an
-upstream, and the commands in them (`git checkout main`, `git pull`, `gh repo view`)
-all fail on a freshly initialised repo: with no commits there is no `main` to check
-out, no upstream to pull from, and possibly no remote to query.
+   ```bash
+   git rev-parse --show-toplevel 2>/dev/null   # imprime la raíz, o falla si no hay repo
+   pwd
+   ```
 
-Check what is actually missing:
+   Tres resultados, y cada uno lleva a un sitio distinto:
+
+   | `--show-toplevel` | Significa | Qué hacer |
+   |---|---|---|
+   | igual que `pwd` | el proyecto ya es su propio repo | continuar |
+   | falla | no hay ningún repo | el paso 1 hace `git init -b main` |
+   | **distinto de `pwd`** | el proyecto está **dentro del repo de otro** | **PARAR y preguntar** |
+
+   En el tercer caso, **para antes de tocar nada** y dile al usuario qué repositorio has
+   encontrado y dónde está su raíz. No ejecutes `git add -A`, y no hagas `git init` sin
+   avisar: crear un repo anidado aquí suele ser lo correcto, pero es decisión del
+   usuario, y el padre puede estar siguiendo ya estos ficheros. El riesgo concreto es que
+   un `git add -A` resuelto contra el repo del padre arrastre todo lo que haya por encima
+   del proyecto, que es exactamente lo que nadie quiere publicar.
+
+4. **Tiene commits y un remoto en GitHub:** `git rev-parse --verify HEAD` y
+   `git remote -v`. Cualquiera de los dos puede faltar en un proyecto recién empezado —
+   el paso 1 se encarga de ambos. No te lo saltes: el resto de pasos asume que `main`
+   existe y tiene upstream.
+
+5. **Visibilidad del repositorio: PREGUNTA SIEMPRE. No la asumas, no la des por
+   defecto.**
+   Es la única decisión de todo el montaje que el usuario tiene que tomar en voz alta, en
+   cada ejecución. Pregúntala con `AskUserQuestion` *antes* de crear el repositorio, y
+   espera la respuesta. No la deduzcas del contenido del proyecto, ni de un valor por
+   defecto razonable, ni de lo que eligió la ejecución anterior, ni del hecho de que a
+   `gh repo create` haya que decirle algo.
+
+   **Si el repositorio todavía no existe** (el caso normal en un proyecto nuevo),
+   pregunta con qué visibilidad crearlo, y enseña lo que cuesta cada opción:
+
+   | | Privado | Público |
+   |---|---|---|
+   | Rulesets de protección de ramas (paso 7) | necesita GitHub Pro — devuelve `403` en Free | gratis |
+   | Secret scanning y push protection de GitHub | no disponible en Free | gratis |
+   | Código legible por cualquiera | no | sí |
+
+   Presenta las dos y no empujes hacia ninguna. Ninguna respuesta es incorrecta: un
+   proyecto con datos personales tiene buen motivo para quedarse privado y renunciar a
+   los rulesets, y un repositorio sin nada sensible tiene buen motivo para aceptar la
+   protección gratis. Expón el intercambio y deja elegir.
+
+   **Si el repositorio ya existe**, lee lo que es ahora con
+   `gh repo view --json visibility --jq .visibility`, dile al usuario cuál es, y pregunta
+   si mantenerla o cambiarla. Nunca la cambies en silencio, en ninguna de las dos
+   direcciones.
+
+   Usa la respuesta tal cual en `gh repo create`, en el paso 1.
+
+   **Solo haz público un repositorio con un sí explícito, y di antes lo que eso
+   significa:** publica **todos los commits que ya están** en el repositorio, no solo los
+   futuros, y volver a privado no despublica lo que se haya descargado o indexado
+   mientras tanto. El comando es
+   `gh repo edit --visibility public --accept-visibility-change-consequences`.
+
+   **"Privado, en plan Free" es una respuesta válida y completa**, no un problema que
+   resolver: el paso 7 devuelve `403`, se salta, y la auditoría de cierre lo registra
+   como una decisión pendiente con su motivo. No reabras la pregunta en el paso 7, y no
+   lo trates como un fallo.
+
+## Pasos
+
+### 1. Arranque: asegurar que `main` existe, tiene un commit y tiene upstream
+
+**Esto va antes que todo lo demás.** Cada paso posterior asume que `main` existe con
+upstream, y sus comandos (`git checkout main`, `git pull`, `gh repo view`) fallan todos
+en un repositorio recién inicializado: sin commits no hay `main` al que cambiar, no hay
+upstream del que tirar, y puede que no haya remoto al que preguntar.
+
+Comprueba qué falta de verdad:
 
 ```bash
-git rev-parse --is-inside-work-tree 2>/dev/null   # is it a repo?
-git rev-parse --verify HEAD 2>/dev/null           # does it have commits?
-git remote get-url origin 2>/dev/null             # does it have a remote?
+git rev-parse --show-toplevel 2>/dev/null   # ¿hay repo, y es ESTE directorio? (previa 3)
+pwd                                         # compara las dos: si difieren, para
+git rev-parse --verify HEAD 2>/dev/null     # ¿tiene commits?
+git remote get-url origin 2>/dev/null       # ¿tiene remoto?
 ```
 
-**If the repo has no commits**, make the initial commit on `main` with the project
-content that already exists:
+**Si el repositorio no tiene commits**, haz el commit inicial en `main` con el contenido
+que el proyecto ya tenga:
 
 ```bash
-git init -b main                 # only if not a repo yet
-git symbolic-ref HEAD refs/heads/main   # if init named the branch master
+git init -b main                        # solo si todavía no es un repo
+git symbolic-ref HEAD refs/heads/main   # si init llamó master a la rama
 ```
 
-Before staging, sort out `.gitignore` — see the note below on why this one template
-cannot wait.
+Antes de preparar nada, resuelve el `.gitignore` — abajo se explica por qué esta
+plantilla concreta no puede esperar.
 
-**If the project has no `.gitignore`:** copy `templates/.gitignore`.
+**Si el proyecto no tiene `.gitignore`:** copia `templates/.gitignore`.
 
-**If it already has one: MERGE, never overwrite.** An existing `.gitignore` is often
-the only thing keeping personal data out of the repo — local datasets, SQLite
-databases, audio recordings, model weights, scraped content. Overwriting it with the
-skill's baseline silently re-exposes all of it in the very first commit, which is
-pushed straight to a fresh remote. Keep the project's file as the base and append only
-the skill's patterns that are missing:
+**Si ya tiene uno: FUSIONA, nunca sobrescribas.** Un `.gitignore` existente suele ser lo
+único que mantiene los datos personales fuera del repositorio: conjuntos de datos
+locales, bases de datos SQLite, grabaciones de audio, pesos de modelos, contenido
+descargado. Sobrescribirlo con la base de la skill vuelve a exponer todo eso en el primer
+commit, que además se empuja de inmediato a un remoto nuevo. Mantén el fichero del
+proyecto como base y añade solo los patrones de la skill que falten:
 
 ```bash
-# The base copy goes OUTSIDE the repo — a .gitignore.bak left in the tree gets
-# picked up by the `git add -A` below and committed.
+# La copia base va FUERA del repositorio: un .gitignore.bak dejado en el árbol lo
+# recoge el `git add -A` de más abajo y acaba commiteado.
 #
-# `tr -d '\r'` on BOTH sides is load-bearing, not tidiness: these templates are
-# stored CRLF and a project's own .gitignore is usually LF. Compared raw, every
-# template pattern carries a trailing \r the project file lacks, so `grep -qxF`
-# never matches and the entire baseline gets appended, duplicates included. The
-# result still *works* — git strips the CR when it reads a pattern — which is what
-# makes it easy to miss: the file just quietly grows a second copy of every
-# entry the two files share.
+# El `tr -d '\r'` en AMBOS lados no es limpieza, es funcional: estas plantillas están
+# guardadas en CRLF y el .gitignore de un proyecto suele ser LF. Comparados en crudo,
+# cada patrón de la plantilla arrastra un \r final que el fichero del proyecto no
+# tiene, así que `grep -qxF` no encuentra nunca coincidencia y se añade la base
+# entera, duplicados incluidos. El resultado *funciona* igual — git descarta el CR al
+# leer un patrón — y eso es justo lo que lo hace fácil de pasar por alto: el fichero
+# simplemente crece en silencio con una segunda copia de cada entrada compartida.
 BASE=$(mktemp) && tr -d '\r' < .gitignore > "$BASE"
 
-{ echo ""; echo "# ===== added by setup-git-flow ====="; } >> .gitignore
-tr -d '\r' < "<skill-path>/templates/.gitignore" | while IFS= read -r line; do
+{ echo ""; echo "# ===== añadido por setup-git-flow ====="; } >> .gitignore
+tr -d '\r' < "<ruta-de-la-skill>/templates/.gitignore" | while IFS= read -r line; do
   [ -z "$line" ] && continue
   case "$line" in \#*) continue;; esac
   grep -qxF -- "$line" "$BASE" || echo "$line" >> .gitignore
@@ -93,225 +168,287 @@ done
 rm -f "$BASE"
 ```
 
-This never rewrites or reorders an existing line, so every project entry survives.
-Two caveats: if **either** file uses negation patterns (`!foo`), order decides the
-outcome and you must merge by hand instead; and review the result for near-duplicates
-(the baseline has `Thumbs.db`, a project may already have the broader `*.db`) — they
-are harmless, just noise.
+Esto no reescribe ni reordena ninguna línea existente, así que sobrevive cada entrada del
+proyecto. Dos avisos: si **cualquiera** de los dos ficheros usa patrones de negación
+(`!foo`), el orden decide el resultado y tienes que fusionar a mano; y revisa el
+resultado buscando casi-duplicados (la base trae `Thumbs.db`, y un proyecto puede tener
+ya el más amplio `*.db`) — son inofensivos, solo ruido.
 
-**Verify before committing.** Ask git directly, rather than reading the file and
-assuming — `git check-ignore` is the authority on what is actually excluded:
+**Verifica antes de commitear.** Pregúntale a git directamente, en vez de leer el fichero
+y suponer: `git check-ignore` es la autoridad sobre lo que está realmente excluido.
 
 ```bash
-# Every path here must print as ignored. Use the project's real sensitive paths
-# plus the secret patterns, e.g.:
-git check-ignore -v .env private.pem id_rsa datos/x.db recording.wav model.gguf
+# Todas estas rutas deben salir como ignoradas. Usa las rutas sensibles reales del
+# proyecto más los patrones de secretos, por ejemplo:
+git check-ignore -v .env private.pem id_rsa datos/x.db grabacion.wav modelo.gguf
 
-# And the reverse: source that MUST stay trackable must print nothing.
+# Y al contrario: el código que DEBE poder versionarse no tiene que imprimir nada.
 git check-ignore -v src/app.py README.md
 ```
 
-Then stage — but do not commit yet:
+Después prepara los ficheros, pero **no commitees todavía**:
 
 ```bash
 git add -A
-git status            # ALWAYS review this — see the warning below
+git status            # REVÍSALO SIEMPRE — mira el aviso de más abajo
 ```
 
-#### Scan the staged content with gitleaks, before the commit
+#### Escanea con gitleaks lo preparado, antes del commit
 
-`.gitignore` and gitleaks protect against the same accident from two different angles,
-and neither one covers the other:
+`.gitignore` y gitleaks protegen del mismo accidente desde dos ángulos distintos, y
+ninguno cubre al otro:
 
-| | Matches on | Catches | Misses |
+| | Busca por | Detecta | No ve |
 |---|---|---|---|
-| `.gitignore` | **file name / path** | `.env`, `*.pem`, `datos/`, `id_rsa` | a key written *inside* `config.py` |
-| gitleaks | **file content** | `AWS_SECRET = "AKIA…"` on line 40 of a tracked source file | nothing about names — it reads what is there |
+| `.gitignore` | **nombre / ruta del fichero** | `.env`, `*.pem`, `datos/`, `id_rsa` | una clave escrita *dentro* de `config.py` |
+| gitleaks | **contenido del fichero** | `AWS_SECRET = "AKIA…"` en la línea 40 de un fichero versionado | nada sobre nombres: lee lo que hay |
 
-No `.gitignore` pattern will ever stop an API key hardcoded in `config.py`,
-`settings.py` or a notebook, because the filename is entirely legitimate. And this
-commit is pushed to a fresh remote immediately, so there is no later gate to catch it:
+Ningún patrón de `.gitignore` detendrá jamás una clave de API escrita a mano en
+`config.py`, `settings.py` o un notebook, porque el nombre del fichero es perfectamente
+legítimo. Y este commit se empuja de inmediato a un remoto nuevo, así que no hay ninguna
+puerta posterior que lo pare:
 
 ```bash
-# Scans exactly what `git add -A` staged
+# Escanea exactamente lo que preparó `git add -A`
 gitleaks git --staged --redact --verbose
 ```
 
-`--redact` keeps the secret itself out of the terminal and any logs. If `gitleaks git`
-is unavailable, `gitleaks dir . --redact --verbose` scans the working tree instead
-(broader: it also reads files `.gitignore` excludes).
+`--redact` mantiene el secreto fuera de la terminal y de cualquier registro. Si
+`gitleaks git` no está disponible, `gitleaks dir . --redact --verbose` escanea el árbol
+de trabajo (más amplio: también lee ficheros que `.gitignore` excluye).
 
-**If gitleaks is not installed: say so and carry on — never abort the setup over it.**
-It is a defence in depth, not a prerequisite. But say it out loud, in the final summary
-as well as here: the initial commit went in **without a content scan**, and it is pushed
-to the remote straight away, so nothing else will catch a key hardcoded in a tracked
-file. Tell the user how to get it — see the troubleshooting entry on gitleaks not being
-installed — and suggest they scan and amend before pushing if the project has any
-history of credentials in source.
+**Si gitleaks no está instalado: dilo y continúa — nunca abortes el montaje por eso.** Es
+una defensa en profundidad, no un requisito. Pero dilo en voz alta, tanto aquí como en el
+resumen final: el commit inicial entró **sin escaneo de contenido**, y se empuja al
+remoto acto seguido, así que nada más va a detectar una clave escrita dentro de un
+fichero versionado. Explica cómo conseguirlo — mira la entrada de incidencias sobre
+gitleaks sin instalar — y sugiere escanear y rehacer el commit antes de empujar si el
+proyecto tiene algún historial de credenciales en el código.
 
-**If gitleaks runs and reports findings, that is different: stop.** Do not commit. A
-finding here means the secret would be published by the next command. Show the user
-what was found (redacted), let them remove it from the file and rotate the credential
-if it was ever real, then re-scan. "Not installed" is a warning; "found something" is a
-full stop.
+**Si gitleaks se ejecuta y encuentra algo, eso es distinto: para.** No commitees. Un
+hallazgo aquí significa que el secreto lo publicaría el siguiente comando. Muéstrale al
+usuario qué se encontró (redactado), que lo quite del fichero y rote la credencial si
+alguna vez fue real, y vuelve a escanear. "No está instalado" es un aviso; "ha encontrado
+algo" es un alto en seco.
 
-Only once the scan is clean (or explicitly skipped) do you commit:
+Solo cuando el escaneo esté limpio (o se haya saltado explícitamente) commiteas:
 
 ```bash
-git commit -m "chore: initial commit"
+git commit -m "chore: commit inicial"
 ```
 
-`git status` after `git add -A` is the last checkpoint: it lists exactly what the
-initial commit will publish. If anything sensitive appears, or anything expected is
-missing, fix `.gitignore` and re-check before committing — not after.
+**El idioma del mensaje lo manda el proyecto, no esta skill.** Antes de escribirlo, mira
+si el proyecto declara uno en `CLAUDE.md` o `CONTRIBUTING.md` y respétalo; si no dice
+nada, escribe en español. Lo que no vale es mezclar: un historial con mensajes en dos
+idiomas es la señal de que cada ejecución decidió por su cuenta. El prefijo de
+Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`) va siempre en inglés,
+porque es un identificador que el CI valida.
 
-**If the repo has no remote**, create it and push `main`:
+`git status` después de `git add -A` es el último punto de control: lista exactamente lo
+que el commit inicial va a publicar. Si aparece algo sensible, o falta algo esperado,
+arregla el `.gitignore` y vuelve a comprobarlo antes de commitear, no después.
+
+**Si el repositorio no tiene remoto**, créalo y empuja `main`:
 
 ```bash
-gh repo create <name> --private --source=. --remote=origin
+# <visibilidad> es --private o --public, tomado de la respuesta del usuario a la
+# comprobación previa 5. Aquí no hay valor por defecto a propósito: si todavía no has
+# preguntado, para y pregunta ahora en vez de elegir tú.
+gh repo create <nombre> <visibilidad> --source=. --remote=origin
 git push -u origin main
 ```
 
-Mind the visibility you pick here: on a Free plan a **private** repo cannot have
-rulesets, so step 7 will fail with `403 Upgrade to GitHub Pro` and the repo ends up
-with no branch protection. Prerequisite 5 covers the trade-off — decide it now with the
-user rather than discovering it at step 7, since changing visibility later means
-`gh repo edit --visibility public --accept-visibility-change-consequences`.
+Este es el punto sin marcha atrás fácil, y por eso la comprobación previa 5 pregunta
+antes: en plan Free un repositorio **privado** no puede tener rulesets, así que el paso 7
+devolverá `403 Upgrade to GitHub Pro` y el repositorio se queda sin protección de ramas;
+y un repositorio **público** publica el commit inicial a cualquiera en el momento en que
+se empuja. Las dos opciones son legítimas y las elige el usuario — tu trabajo es haber
+preguntado antes de que esta línea se ejecute, no descubrir la consecuencia en el paso 7.
 
-If the remote exists but `main` has no upstream: `git push -u origin main`.
+Si el remoto existe pero `main` no tiene upstream: `git push -u origin main`.
 
-#### ⚠️ Review `git status` before `git add -A`
+#### ⚠️ Revisa `git status` antes de `git add -A`
 
-`git add -A` stages everything not ignored. With no `.gitignore`, or with one that lost
-its entries to an overwrite, that can mean `.env`, `*.pem`, private keys, local
-databases, datasets, recordings or model weights — and the initial commit is pushed to a
-fresh remote immediately, so a secret committed here is a secret published. GitHub push
-protection only catches recognisable token formats: it will not stop a `.env`, a SQLite
-file of personal data, or a `.wav`.
+`git add -A` prepara todo lo que no esté ignorado. Sin `.gitignore`, o con uno que perdió
+sus entradas en una sobrescritura, eso puede significar `.env`, `*.pem`, claves privadas,
+bases de datos locales, conjuntos de datos, grabaciones o pesos de modelos — y el commit
+inicial se empuja a un remoto nuevo de inmediato, así que un secreto commiteado aquí es
+un secreto publicado. La push protection de GitHub solo detecta formatos de token
+reconocibles: no va a parar un `.env`, un fichero SQLite con datos personales ni un
+`.wav`.
 
-This is why `.gitignore` is settled **before** the initial commit and rides along in
-it, even though every other template waits for its own PR (see step 6): it is the only
-one that has to be in place before the first `git add -A` to do its job. And it is why
-the merge above is additive — the project's own entries are protecting data the
-baseline knows nothing about, so losing them is as bad as never having the baseline.
+Por eso el `.gitignore` se resuelve **antes** del commit inicial y viaja dentro de él,
+aunque cualquier otra plantilla espere a su propio PR (ver paso 6): es la única que tiene
+que estar colocada antes del primer `git add -A` para servir de algo. Y por eso la fusión
+de arriba es aditiva: las entradas propias del proyecto están protegiendo datos de los
+que la base no sabe nada, así que perderlas es tan grave como no haber tenido base.
 
-### 2. Determine the GitHub owner/repo
+### 2. Averiguar el owner/repo de GitHub
 
 ```bash
 gh repo view --json nameWithOwner --jq .nameWithOwner
 ```
 
-Save as `OWNER_REPO` for later use in API calls.
+Guárdalo como `OWNER_REPO` para las llamadas a la API de más adelante.
 
-### 3. Determine the user's GitHub username
+### 3. Averiguar el usuario de GitHub
 
 ```bash
 gh api user --jq .login
 ```
 
-Save as `GH_USERNAME`. Used in CODEOWNERS.
+Guárdalo como `GH_USERNAME`. Se usa en CODEOWNERS.
 
-### 4. Create `develop` branch
+### 4. Crear la rama `develop`
 
-Step 1 guarantees `main` exists with a commit. If `develop` doesn't exist:
+El paso 1 garantiza que `main` existe con un commit. Si `develop` no existe:
 
 ```bash
 git checkout main
-# Only pull if main tracks an upstream — in a repo bootstrapped in step 1 the
-# first push already set it, but `git pull` with no upstream fails outright.
+# Solo haz pull si main sigue a un upstream: en un repo arrancado en el paso 1 el
+# primer push ya lo dejó puesto, pero `git pull` sin upstream falla directamente.
 git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1 && git pull
 git checkout -b develop
 git push -u origin develop
 ```
 
-### 5. Copy templates
+### 5. Copiar las plantillas
 
-Copy the contents of this skill's `templates/` directory into the project root, preserving the directory structure. The templates include:
+Copia el contenido del directorio `templates/` de esta skill a la raíz del proyecto,
+conservando la estructura de carpetas. Las plantillas son:
 
 - `.github/PULL_REQUEST_TEMPLATE.md`
 - `.github/ISSUE_TEMPLATE/bug_report.md`
 - `.github/ISSUE_TEMPLATE/feature_request.md`
-- `.github/ISSUE_TEMPLATE/config.yml` — **must replace `OWNER/REPO` placeholder with actual repo path**
-- `.github/CODEOWNERS` — **must replace `@OWNER` placeholder with `@$GH_USERNAME`**
+- `.github/ISSUE_TEMPLATE/config.yml` — **hay que sustituir el marcador `OWNER/REPO` por
+  la ruta real del repositorio**
+- `.github/CODEOWNERS` — **hay que sustituir el marcador `@OWNER` por `@$GH_USERNAME`**
 - `.github/workflows/ci.yml`
-- `CONTRIBUTING.md` — **must replace `OWNER/REPO` placeholder if any references**
-- `.gitignore` — **already handled in step 1**, which copies or merges it before the initial commit. Nothing to do here; do not re-copy it over the merged file, that would drop the project's own entries.
-- `docs/git-cheatsheet.md` — practical day-to-day reference for humans and AIs. Place it under `docs/` if the project has that folder, otherwise at the root. `CONTRIBUTING.md` already links to it at `docs/git-cheatsheet.md` — if you put it elsewhere, fix those two links. Also reference it from `CLAUDE.md` (if it exists).
+- `CONTRIBUTING.md` — **sustituir el marcador `OWNER/REPO` si hay alguna referencia**
+- `.gitignore` — **ya resuelto en el paso 1**, que lo copia o lo fusiona antes del commit
+  inicial. Aquí no hay nada que hacer; no lo vuelvas a copiar encima del fichero
+  fusionado, porque eso tiraría las entradas propias del proyecto.
+- `docs/git-cheatsheet.md` — referencia práctica del día a día, para personas y para IAs.
+  Colócalo en `docs/` si el proyecto tiene esa carpeta, y si no en la raíz.
+  `CONTRIBUTING.md` ya lo enlaza como `docs/git-cheatsheet.md`: si lo pones en otro
+  sitio, corrige esos dos enlaces. Referéncialo también desde `CLAUDE.md` si existe —
+  salvo que el usuario haya pedido no tocar ese fichero, o que ya lo enlace.
 
-### 6. Commit and push templates via PR (do NOT push to main directly)
+### 6. Commitear y empujar las plantillas vía PR (NO empujes a main directamente)
 
-**Project content and skill templates are two separate commits, in this order:**
+**El contenido del proyecto y las plantillas de la skill son dos commits separados, en
+este orden:**
 
-| What | Where it lands | When |
+| Qué | Dónde acaba | Cuándo |
 |------|----------------|------|
-| The project's own code and files | initial commit on `main` | step 1 |
-| This skill's templates (`.github/`, `CONTRIBUTING.md`, `docs/`) | `chore/git-flow-setup` → PR to `develop` | this step |
+| El código y los ficheros propios del proyecto | commit inicial en `main` | paso 1 |
+| Las plantillas de esta skill (`.github/`, `CONTRIBUTING.md`, `docs/`) | `chore/git-flow-setup` → PR a `develop` | este paso |
 
-Keeping them separate is what makes step 1 mandatory rather than optional. This step
-stages named paths only, never `git add -A`, so in a project that already has code, any
-file not committed in step 1 is simply left untracked — and because this step ends in
-`gh pr merge --squash --admin --delete-branch`, nothing ever surfaces that omission. The
-setup reports success, the PR is green, and the project's actual source is sitting
-uncommitted in the working tree.
+Mantenerlos separados es lo que hace que el paso 1 sea obligatorio y no opcional. Este
+paso prepara solo rutas con nombre, nunca `git add -A`, así que en un proyecto que ya
+tenga código, cualquier fichero no commiteado en el paso 1 se queda sin seguimiento — y
+como este paso termina en `gh pr merge --squash --admin --delete-branch`, nada saca a la
+luz esa omisión. El montaje reporta éxito, el PR está verde, y el código real del
+proyecto sigue sin commitear en el árbol de trabajo.
 
-So: commit the project's content in step 1, then the templates here. Before opening this
-PR, run `git status` once more — anything unexpected still untracked means step 1 was
-skipped or incomplete.
+Así que: commitea el contenido del proyecto en el paso 1, y las plantillas aquí. Antes de
+abrir este PR, ejecuta `git status` una vez más — cualquier cosa inesperada que siga sin
+seguimiento significa que el paso 1 se saltó o quedó a medias.
 
 ```bash
 git checkout -b chore/git-flow-setup
 git add .github CONTRIBUTING.md .gitignore docs/
-git commit -m "chore: set up Git Flow with PR templates, CI, and contribution guide"
+git commit -m "chore: configura Git Flow con plantillas de PR, CI y guía de contribución"
 git push -u origin chore/git-flow-setup
-gh pr create --base develop --title "chore: set up Git Flow" --fill
+gh pr create --base develop --title "chore: configura Git Flow" --fill
+```
+
+`docs/` tiene que estar en ese `git add` — el paso 5 copia `docs/git-cheatsheet.md`, y
+sin él la chuleta se queda sin seguimiento y no llega nunca al repositorio. Si el
+proyecto no tiene carpeta `docs/` y colocaste la chuleta en la raíz, prepara
+`git-cheatsheet.md` en su lugar.
+
+#### Espera a los checks y léelos antes de fusionar
+
+Este es el primer PR del proyecto, y por tanto la primera vez que el CI se ejecuta de
+verdad. **No fusiones a ciegas**: sin rulesets aplicados nada impide que el merge entre
+sin que nadie haya mirado el CI, y el resumen final tiene que reportar qué dijo cada
+check, algo que no puedes saber si no lo has leído.
+
+```bash
+gh pr checks --watch    # bloquea hasta que terminan todos; sale distinto de 0 si alguno falla
+```
+
+Un detalle que hace tropezar: justo después de `gh pr create` los checks **todavía no
+están registrados**, y `gh pr checks` responde que no hay ninguno. No lo interpretes como
+"ya han terminado y está todo bien". Si pasa, espera unos segundos y repite; los checks
+aparecen un momento después de abrirse el PR. Si escribes un bucle de espera propio,
+asegúrate de que exige ver al menos un check antes de dar por concluida la espera, porque
+si no sale en la primera vuelta creyendo que no queda nada pendiente.
+
+Lee los tres por su nombre y quédate con lo que reportaron, porque va al resumen:
+`Lint & Type check`, `Python checks`, `Commit messages`. En un proyecto sin
+`pyproject.toml` ni `package.json` saldrán verdes y vacíos, y eso es lo esperado. Si
+alguno falla, **lee el log antes de tocar nada**: puede estar fallando por un motivo que
+no tiene nada que ver con lo que parece (ver la entrada de incidencias sobre
+`Resource not accessible by integration`).
+
+Solo con los checks leídos, fusiona:
+
+```bash
 gh pr merge --squash --admin --delete-branch
 ```
 
-`docs/` must be in that `git add` — step 5 copies `docs/git-cheatsheet.md`, and without
-it the cheatsheet stays untracked and never reaches the repo. If the project has no
-`docs/` folder and you placed the cheatsheet at the root, stage `git-cheatsheet.md`
-instead.
-
-Then sync develop to main. Note the merge method: PRs into `develop` are squashed,
-but `develop → main` uses a **merge commit** — see the merge policy note in step 7.
+Después sincroniza develop con main. Fíjate en el método de fusión: los PR hacia
+`develop` van con squash, pero `develop → main` va con **merge commit** — mira la nota
+sobre la política de fusión en el paso 7.
 
 ```bash
 git checkout develop && git pull
-gh pr create --base main --head develop --title "chore: initial Git Flow setup" --fill
+gh pr create --base main --head develop --title "chore: montaje inicial de Git Flow" --fill
+gh pr checks --watch     # igual que antes: leer antes de fusionar
 gh pr merge --merge --admin
 ```
 
-### 7. Apply branch protection rulesets
+### 7. Aplicar los rulesets de protección de ramas
 
-Only if repo is public OR user has paid plan.
+Solo si el repositorio es público O el usuario tiene plan de pago. Si la comprobación
+previa 5 se resolvió en un repositorio privado con plan Free, salta este paso: el `403`
+es lo esperado, no es un problema que haya que rodear, y la pregunta de la visibilidad ya
+está contestada — no la vuelvas a hacer aquí. Lleva los rulesets saltados a la auditoría
+de cierre como pendientes, con su motivo.
 
-The `rulesets/` directory in this skill contains JSON files for `main` and `develop`. Apply them:
+El directorio `rulesets/` de esta skill contiene los JSON de `main` y `develop`.
+Aplícalos:
 
 ```bash
-# For main (squash + merge commit allowed, conversation resolution required)
-gh api -X POST repos/$OWNER_REPO/rulesets --input <skill-path>/rulesets/main.json
+# Para main (permite squash y merge commit, exige resolver las conversaciones)
+gh api -X POST repos/$OWNER_REPO/rulesets --input <ruta-de-la-skill>/rulesets/main.json
 
-# For develop (PR required, no force push, no deletion)
-gh api -X POST repos/$OWNER_REPO/rulesets --input <skill-path>/rulesets/develop.json
+# Para develop (exige PR, prohíbe force push y borrado)
+gh api -X POST repos/$OWNER_REPO/rulesets --input <ruta-de-la-skill>/rulesets/develop.json
 ```
 
-Note: The rulesets use `actor_id: 5` (admin role) with `bypass_mode: pull_request` — meaning admins must still go through PRs but can self-merge.
+Nota: los rulesets usan `actor_id: 5` (rol de administrador) con
+`bypass_mode: pull_request`, lo que significa que los administradores siguen pasando por
+PR pero pueden fusionar ellos mismos.
 
-**Merge policy (both rulesets allow squash and merge commits, so the rule is a
-convention, not an enforced one — `CONTRIBUTING.md` is the source of truth):**
+**Política de fusión (los dos rulesets permiten squash y merge commit, así que la regla
+es una convención, no algo impuesto — `CONTRIBUTING.md` es la fuente de verdad):**
 
-| PR | Method |
+| PR | Método |
 |----|--------|
 | `feat/*`, `fix/*`, `chore/*`, `docs/*` → `develop` | squash (`gh pr merge --squash`) |
 | `develop` → `main` (release) | merge commit (`gh pr merge --merge`) |
 
-`main` deliberately has **no** `required_linear_history` rule: that rule forbids merge
-commits, so keeping it while allowing the merge method would be contradictory — GitHub
-would show the button and then reject the merge. Releases go in as merge commits so
-`develop`'s commits become ancestors of `main`; squashing `develop → main` splits the
-two histories and makes every later release PR re-list everything before it.
+`main` deliberadamente **no** tiene la regla `required_linear_history`: esa regla prohíbe
+los merge commits, así que mantenerla permitiendo a la vez el método merge sería
+contradictorio — GitHub mostraría el botón y después rechazaría la fusión. Los releases
+entran como merge commits para que los commits de `develop` pasen a ser ancestros de
+`main`; hacer squash de `develop → main` separa las dos historias y hace que cada PR de
+release posterior vuelva a listar todo lo anterior.
 
-### 8. Enable security features
+### 8. Activar las funciones de seguridad
 
 ```bash
 gh api -X PATCH repos/$OWNER_REPO \
@@ -322,44 +459,155 @@ gh api -X PUT repos/$OWNER_REPO/vulnerability-alerts
 gh api -X PUT repos/$OWNER_REPO/automated-security-fixes
 ```
 
-### 9. Document the setup
+En un repositorio privado con plan Free, el secret scanning devuelve `422`
+(`Secret scanning is not available for this repository`). No es un fallo del montaje:
+recógelo en el resumen como no disponible en ese plan, y recuerda que gitleaks en local
+es la compensación.
 
-If the project has a `CLAUDE.md` and/or `docs/progress.md`, update them with:
-- Branching strategy summary (or reference to `CONTRIBUTING.md`).
-- Note that branch protection is active on `main` and `develop`.
-- Date of setup.
+### 9. Documentar el montaje
 
-If no docs exist, just leave `CONTRIBUTING.md` as the source of truth.
+Si el proyecto tiene `CLAUDE.md` y/o `docs/progress.md`, actualízalos con:
+- Un resumen de la estrategia de ramas (o una referencia a `CONTRIBUTING.md`).
+- Que la protección de ramas está activa en `main` y `develop`, o pendiente y por qué.
+- La fecha del montaje.
 
-## Final summary to give the user
+Si el usuario ha pedido no tocar alguno de esos ficheros, respétalo y no lo edites: deja
+constancia en otro sitio (un issue sirve, y persiste sin añadir ficheros al árbol) y dilo
+en el resumen. Si no hay documentación ninguna, deja `CONTRIBUTING.md` como fuente de
+verdad.
 
-After completing, report:
-- ✅ Branches created: `main`, `develop`
-- ✅ Branch protection rulesets active (or pending if private+free)
-- ✅ Security features enabled (secret scanning, push protection, dependabot)
-- ✅ Templates and CI workflow in place (`Lint & Type check`, `Python checks`, `Commit messages` required on both branches)
-- ✅ `CONTRIBUTING.md` documents the flow, including the merge policy (squash into `develop`, merge commit for `develop → main`)
-- ✅ Staged content scanned with gitleaks before the initial commit — or, if gitleaks was not installed: ⚠️ say plainly that the initial commit went in **unscanned**, and point at the troubleshooting entry for installing it
+## Cierre: primero la auditoría, después el resumen
 
-## Customization options to consider
+Al final pasan dos cosas, en este orden. La auditoría va primera, porque el resumen tiene
+que reportar lo que la auditoría **encontró**, no lo que los pasos pretendían conseguir.
 
-When invoking this skill, the user might want variations. Ask if unclear:
-- **Single-dev mode** vs multi-dev: in single-dev, `required_approving_review_count: 0` (default). In team mode, set it to 1+.
-- **Strict CI** vs permissive: the rulesets require `Lint & Type check`, `Python checks` and `Commit messages` by default. If the user wants permissive merges, drop the `required_status_checks` rule from the ruleset JSON before applying it. If you rename a job in `ci.yml`, update the matching `context` in both rulesets — the context is the job's `name`, not its id, and a context that never reports blocks every PR.
-- **Issue templates language**: default is Spanish (since this template was authored for Spanish-speaking user). Translate to English or other if user prefers.
-- **PR template detail level**: default is medium-detail. Some teams prefer minimal.
+### A. Auditoría de cierre: demostrar que nada quedó a medias
 
-## Troubleshooting
+**No escribas el resumen de memoria, a partir de los comandos que ejecutaste.**
+Pregúntale a git y a `gh` cuál es el estado real. Un montaje que *casi* termina es el
+peor resultado posible: reporta éxito, y lo que quedó colgando —un PR todavía abierto,
+una rama nunca empujada, un commit que no salió de la máquina— aparece días después
+delante de alguien que se fió del informe.
 
-- **"Upgrade to GitHub Pro"** when applying rulesets → repo is private + Free. Either make public or skip.
-- **PR merge fails after applying rulesets** → ensure `bypass_actors` has the admin entry, otherwise even the owner can't merge.
-- **CI jobs are green but empty on first push** → expected; there is no `package.json`/`pyproject.toml` yet. The steps are guarded, but every job still runs and reports, so required status checks are satisfied.
-- **PR stuck on "Expected — Waiting for status to be reported"** → a required context never ran. Almost always a job-level `if` (the job is skipped, so it reports nothing) or a job renamed without updating the ruleset context.
-- **`Commit messages` fails with `Resource not accessible by integration`** → not a
-  malformed commit message. `wagoid/commitlint-github-action` asks the API for the list
-  of commits in the PR, and the default `GITHUB_TOKEN` is granted `contents` only, so
-  the call is refused and the job dies *before* it lints anything. The job in `ci.yml`
-  therefore carries an explicit grant:
+Ejecuta todas estas y lee cada respuesta:
+
+```bash
+# 1. Árbol de trabajo limpio: nada modificado, preparado ni sin seguimiento
+git status --porcelain
+
+# 2. Ningún commit local que no haya llegado al remoto, en CUALQUIER rama local.
+#    Imprime también el upstream: `%(upstream:track)` a secas sale vacío tanto para
+#    una rama sincronizada COMO para una que no tiene upstream ninguno, así que una
+#    rama nunca empujada se leería como limpia. Un `upstream=` vacío es la señal.
+git for-each-ref --format='%(refname:short) upstream=%(upstream:short) %(upstream:track)' refs/heads
+
+# 3. Las dos ramas de vida larga existen en el remoto
+git ls-remote --heads origin main develop
+
+# 4. develop y main sincronizadas (0 = nada esperando a promocionarse)
+git rev-list --count origin/main..origin/develop
+
+# 5. Ningún pull request dejado abierto por este montaje
+gh pr list --state open
+
+# 6. La rama temporal del montaje ya no está, ni en local ni en el remoto
+git branch --list 'chore/git-flow-setup'
+git ls-remote --heads origin 'chore/git-flow-setup'
+
+# 7. Toda etiqueta creada en local está empujada
+git tag -l ; git ls-remote --tags origin
+```
+
+El resultado limpio es: (1) vacío — (2) cada línea con un `upstream=` no vacío y sin
+`[ahead N]` — (3) las dos refs listadas — (4) exactamente `0` — (5) vacío — (6) las dos
+vacías — (7) cada etiqueta local también en el remoto.
+
+**Si todas las comprobaciones salen limpias**, dilo en el resumen como un resultado
+verificado, no como una suposición: *"comprobado: no queda ningún merge, push ni rama
+pendiente."*
+
+**Si queda algo por hacer, no reportes el montaje como completo.** Nombra exactamente lo
+que falta, en términos sobre los que el usuario pueda actuar, y **pide permiso para
+terminarlo**: no te calles, y no sigas adelante sin preguntar. Por ejemplo:
+
+> El PR #2 sigue abierto y `develop` tiene 1 commit sin promocionar a `main`.
+> ¿Quieres que lo termine yo?
+
+Espera la respuesta. Si el usuario dice que sí, termínalo y **vuelve a pasar la
+auditoría** antes de escribir el resumen: lo que reportas es la segunda pasada.
+
+Hay un caso en el que se *espera* que quede algo pendiente y no es un fallo: los rulesets
+en un repositorio privado con plan Free. Eso es una decisión que el usuario tomó en la
+comprobación previa 5, así que repórtalo como pendiente **con su motivo**, nunca como
+algo que salió mal.
+
+### B. El resumen, en español
+
+**Escribe el resumen final en español**, siempre, salvo que el usuario pida
+explícitamente otro idioma. Mantén en su forma original los nombres de comandos, de
+ramas, las rutas de ficheros y los nombres de los checks: son identificadores, no prosa.
+
+Cubre todos los puntos de abajo. Si alguno no aplica, dilo en vez de omitirlo, para que
+la forma del informe sea la misma en cada ejecución y nada pueda desaparecer sin que se
+note:
+
+- **Repositorio**: URL, y su visibilidad — diciendo que la eligió el usuario, no la
+  skill.
+- **Ramas**: `main` y `develop`, y que las dos existen en el remoto.
+- **Qué llevó el commit inicial**: la lista de ficheros, no "los ficheros del proyecto".
+- **Plantillas y ficheros creados**: `.github/`, `CONTRIBUTING.md`,
+  `docs/git-cheatsheet.md`.
+- **CI**: que se ejecutó, y qué reportó **cada** check por su nombre
+  (`Lint & Type check`, `Python checks`, `Commit messages`). Verdes vacíos en un proyecto
+  sin `pyproject.toml` ni `package.json` son lo esperado: dilo.
+- **Rulesets**: aplicados, o pendientes con el motivo.
+- **Seguridad**: qué quedó activo y qué no está disponible en ese plan.
+- **gitleaks**: que se ejecutó y qué devolvió — o, si no estaba instalado, que el commit
+  inicial fue **sin escanear**, dicho claramente.
+- **Política de fusión**: squash hacia `develop`, merge commit de `develop` a `main`.
+- **Qué falló, se saltó o necesitó improvisación**: siempre presente. Si no hubo nada,
+  decir que no hubo nada.
+- **Resultado de la auditoría**: que no queda nada pendiente, o qué queda y qué has
+  preguntado sobre ello.
+
+## Opciones que conviene considerar
+
+Al invocar esta skill el usuario puede querer variaciones. Pregunta si no está claro:
+- **Modo de un solo desarrollador** frente a equipo: con una sola persona,
+  `required_approving_review_count: 0` (el valor por defecto). En equipo, ponlo a 1 o
+  más.
+- **CI estricto** frente a permisivo: los rulesets exigen por defecto
+  `Lint & Type check`, `Python checks` y `Commit messages`. Si el usuario quiere fusiones
+  permisivas, quita la regla `required_status_checks` del JSON del ruleset antes de
+  aplicarlo. Si renombras un job en `ci.yml`, actualiza el `context` correspondiente en
+  los dos rulesets: el context es el `name` del job, no su id, y un context que nunca
+  reporta bloquea todos los PR.
+- **Idioma de las plantillas de issues**: están en español, igual que el resto de la
+  skill. Tradúcelas solo si el usuario lo pide.
+- **Nivel de detalle de la plantilla de PR**: por defecto es intermedio. Algunos equipos
+  prefieren algo mínimo.
+
+## Incidencias
+
+- **"Upgrade to GitHub Pro"** al aplicar los rulesets → el repositorio es privado con
+  plan Free, que es exactamente lo que avisaba la comprobación previa 5. Salta el paso y
+  registra los rulesets como pendientes. **No** ofrezcas volver el repositorio público
+  para pasar por encima: esa decisión ya estaba tomada, y hacerlo público publica todos
+  los commits ya empujados. Solo se revisa si lo plantea el usuario.
+- **La fusión del PR falla después de aplicar los rulesets** → asegúrate de que
+  `bypass_actors` tiene la entrada de administrador; si no, ni el propio dueño puede
+  fusionar.
+- **Los jobs del CI salen verdes pero vacíos en el primer push** → es lo esperado:
+  todavía no hay `package.json` ni `pyproject.toml`. Los pasos están protegidos, pero
+  cada job se ejecuta y reporta igual, así que los checks requeridos quedan satisfechos.
+- **PR atascado en "Expected — Waiting for status to be reported"** → un context
+  requerido no se ejecutó nunca. Casi siempre es un `if` a nivel de job (el job se salta,
+  así que no reporta nada) o un job renombrado sin actualizar el context del ruleset.
+- **`Commit messages` falla con `Resource not accessible by integration`** → no es un
+  mensaje de commit mal formado. `wagoid/commitlint-github-action` pide a la API la lista
+  de commits del PR, y el `GITHUB_TOKEN` por defecto solo trae `contents`, así que la
+  llamada se rechaza y el job muere *antes* de validar nada. Por eso el job de `ci.yml`
+  lleva un permiso explícito:
 
   ```yaml
   permissions:
@@ -367,41 +615,45 @@ When invoking this skill, the user might want variations. Ask if unclear:
     pull-requests: read
   ```
 
-  If you ever see this again, check that block survived, and check the repo's default
-  at `gh api repos/$OWNER_REPO/actions/permissions/workflow` — an org or repo set to
-  read-only workflow permissions is the usual cause.
+  Si lo vuelves a ver, comprueba que ese bloque sigue ahí, y mira el valor por defecto
+  del repositorio con `gh api repos/$OWNER_REPO/actions/permissions/workflow`: una
+  organización o un repositorio con permisos de workflow en solo lectura es la causa
+  habitual.
 
-  **Why the repo's own `lint-templates.yml` cannot catch this.** actionlint reads the
-  workflow as a *document*: syntax, expression validity, runner labels, shellcheck over
-  `run:` blocks. A job with no `permissions:` block is perfectly valid YAML and
-  perfectly valid GitHub Actions — there is nothing malformed to report. What fails is
-  **authorization at run time**, which depends on the token a particular repository
-  hands the job, and that exists only once a real PR runs in a real repo. The template
-  ships here but never executes here, so a whole class of defect — anything that only
-  appears when the workflow actually runs — is invisible to the checks in this repo and
-  surfaces in the first project the skill is applied to. Treat the first PR of a fresh
-  setup as part of the test surface, and read what the checks actually report rather
-  than trusting that green templates imply a green pipeline.
-- **`gh: command not found`** → after install, may need new shell session or explicit PATH: `export PATH="/c/Program Files/GitHub CLI:$PATH"`.
-- **gitleaks not installed** → the initial commit in step 1 goes in **without a content
-  scan**, and `.gitignore` does not cover the gap: no filename pattern stops an API key
-  hardcoded inside a legitimately-named `config.py`. This never aborts the setup, but it
-  must be said out loud rather than passed over.
+  **Por qué el `lint-templates.yml` de este repositorio no puede detectarlo.** actionlint
+  lee el workflow como *documento*: sintaxis, validez de las expresiones, etiquetas de
+  runner, shellcheck sobre los bloques `run:`. Un job sin bloque `permissions:` es YAML
+  perfectamente válido y Actions perfectamente válido — no hay nada malformado que
+  reportar. Lo que falla es la **autorización en tiempo de ejecución**, que depende del
+  token que un repositorio concreto entrega al job, y eso solo existe cuando un PR real
+  se ejecuta en un repositorio real. La plantilla viaja en este repositorio pero nunca se
+  ejecuta aquí, así que toda una clase de defectos —cualquiera que solo aparezca al
+  ejecutar— es invisible a los checks de este repo y sale en el primer proyecto donde se
+  aplica la skill. Trata el primer PR de un montaje nuevo como parte de la superficie de
+  prueba, y lee lo que los checks reportan de verdad en vez de dar por hecho que unas
+  plantillas verdes implican una tubería verde.
+- **`gh: command not found`** → después de instalarlo puede hacer falta una sesión nueva
+  de terminal, o el PATH explícito:
+  `export PATH="/c/Program Files/GitHub CLI:$PATH"`.
+- **gitleaks sin instalar** → el commit inicial del paso 1 entra **sin escaneo de
+  contenido**, y el `.gitignore` no cubre ese hueco: ningún patrón de nombre detiene una
+  clave de API escrita dentro de un `config.py` de nombre legítimo. Esto nunca aborta el
+  montaje, pero hay que decirlo en voz alta en vez de pasarlo por alto.
 
-  Install it as a release binary — it is a single static executable, no toolchain and no
-  build step:
+  Instálalo como binario de release: es un único ejecutable estático, sin cadena de
+  compilación y sin pasos de construcción.
 
   ```bash
   brew install gitleaks        # macOS / Linuxbrew
   winget install gitleaks      # Windows
-  # or download a binary from github.com/gitleaks/gitleaks/releases and put it on PATH
+  # o baja un binario de github.com/gitleaks/gitleaks/releases y ponlo en el PATH
   ```
 
-  Confirm with `gitleaks version`, then scan retroactively:
+  Confírmalo con `gitleaks version` y después escanea de forma retroactiva:
 
   ```bash
-  gitleaks git --redact --verbose    # the whole history, not just what is staged
+  gitleaks git --redact --verbose    # todo el historial, no solo lo preparado
   ```
 
-  If that turns up anything already committed, rotating the credential is the fix —
-  rewriting history does not un-publish what was pushed.
+  Si eso saca algo ya commiteado, la solución es rotar la credencial: reescribir el
+  historial no despublica lo que ya se empujó.
