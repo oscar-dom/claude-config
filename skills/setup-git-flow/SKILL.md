@@ -25,13 +25,42 @@ Before doing anything, verify:
 4. **Has commits and a GitHub remote:** `git rev-parse --verify HEAD` and `git remote -v`.
    Either may be missing in a brand-new project — step 1 handles both. Do not skip it:
    the rest of the steps assume `main` exists and has an upstream.
-5. **Repo visibility for branch protection:** `gh repo view --json visibility`. Branch protection rulesets require either:
-   - Public repo (free), or
-   - GitHub Pro/Team/Enterprise (private repo).
-   - If repo is private and user is on Free plan, **ask the user** before making it public:
-     - Explain implications (code visible, but secret scanning + push protection get enabled).
-     - If user agrees: `gh repo edit --visibility public --accept-visibility-change-consequences`.
-     - If user declines: skip branch protection step (continue with everything else) and document in `progress.md` that this is pending.
+5. **Repository visibility — ALWAYS ASK. Never assume, never default.**
+   This is the one decision in the whole setup that the user must make out loud, every
+   single run. Ask it with `AskUserQuestion` *before* the repo is created, and wait for
+   the answer. Do not infer it from the project's contents, from a sensible-sounding
+   default, from what the last run chose, or from the fact that `gh repo create` has to
+   be told something.
+
+   **If the repo does not exist yet** (the usual case on a fresh project), ask which
+   visibility to create it with, and show what each one actually costs:
+
+   | | Private | Public |
+   |---|---|---|
+   | Branch protection rulesets (step 7) | needs GitHub Pro — returns `403` on Free | free |
+   | GitHub secret scanning and push protection | not available on Free | free |
+   | Code readable by anyone | no | yes |
+
+   Present both and do not steer. Neither answer is wrong: a project holding personal
+   data has a good reason to stay private and go without rulesets, and a repo with
+   nothing sensitive in it has a good reason to take the free protection. State the
+   trade-off, let the user choose.
+
+   **If the repo already exists**, read what it is now with
+   `gh repo view --json visibility --jq .visibility`, tell the user, and ask whether to
+   keep it or change it. Never change it silently in either direction.
+
+   Use the answer verbatim in `gh repo create` in step 1.
+
+   **Only turn a repo public on an explicit yes, and say what that means first:** it
+   publishes every commit already in the repo, not just future ones, and going private
+   again does not unpublish what was fetched or indexed in the meantime. The command is
+   `gh repo edit --visibility public --accept-visibility-change-consequences`.
+
+   **"Private, on a Free plan" is a complete and valid answer**, not a problem to solve:
+   step 7 returns `403`, gets skipped, and the closing audit records the rulesets as a
+   pending decision with its reason. Do not reopen the question at step 7, and do not
+   treat it as a failure.
 
 ## Steps
 
@@ -168,15 +197,19 @@ missing, fix `.gitignore` and re-check before committing — not after.
 **If the repo has no remote**, create it and push `main`:
 
 ```bash
-gh repo create <name> --private --source=. --remote=origin
+# <visibility> is --private or --public, taken from the user's answer to
+# prerequisite 5. There is no default here on purpose: if you have not asked yet,
+# stop and ask now rather than picking one.
+gh repo create <name> <visibility> --source=. --remote=origin
 git push -u origin main
 ```
 
-Mind the visibility you pick here: on a Free plan a **private** repo cannot have
-rulesets, so step 7 will fail with `403 Upgrade to GitHub Pro` and the repo ends up
-with no branch protection. Prerequisite 5 covers the trade-off — decide it now with the
-user rather than discovering it at step 7, since changing visibility later means
-`gh repo edit --visibility public --accept-visibility-change-consequences`.
+This is the point of no easy return, which is why prerequisite 5 asks first: on a Free
+plan a **private** repo cannot have rulesets, so step 7 will return
+`403 Upgrade to GitHub Pro` and the repo ends up with no branch protection, while a
+**public** repo publishes the initial commit to anyone the moment it is pushed. Both are
+legitimate choices and the user makes them — your job is to have asked before this line
+runs, not to discover the consequence at step 7.
 
 If the remote exists but `main` has no upstream: `git push -u origin main`.
 
@@ -283,7 +316,10 @@ gh pr merge --merge --admin
 
 ### 7. Apply branch protection rulesets
 
-Only if repo is public OR user has paid plan.
+Only if the repo is public OR the user has a paid plan. If prerequisite 5 settled on a
+private repo on a Free plan, skip this step: the `403` is expected, it is not a problem
+to work around, and the visibility question is already answered — do not ask it again
+here. Carry the skipped rulesets into the closing audit as pending, with the reason.
 
 The `rulesets/` directory in this skill contains JSON files for `main` and `develop`. Apply them:
 
@@ -331,15 +367,98 @@ If the project has a `CLAUDE.md` and/or `docs/progress.md`, update them with:
 
 If no docs exist, just leave `CONTRIBUTING.md` as the source of truth.
 
-## Final summary to give the user
+## Closing: audit first, then the summary in Spanish
 
-After completing, report:
-- ✅ Branches created: `main`, `develop`
-- ✅ Branch protection rulesets active (or pending if private+free)
-- ✅ Security features enabled (secret scanning, push protection, dependabot)
-- ✅ Templates and CI workflow in place (`Lint & Type check`, `Python checks`, `Commit messages` required on both branches)
-- ✅ `CONTRIBUTING.md` documents the flow, including the merge policy (squash into `develop`, merge commit for `develop → main`)
-- ✅ Staged content scanned with gitleaks before the initial commit — or, if gitleaks was not installed: ⚠️ say plainly that the initial commit went in **unscanned**, and point at the troubleshooting entry for installing it
+Two things happen at the end, in this order. The audit comes first, because the summary
+must report what the audit *found*, not what the steps were supposed to achieve.
+
+### A. Completion audit — prove nothing is left half-done
+
+**Do not write the summary from memory of the commands you ran.** Ask git and `gh` what
+the real state is. A setup that *almost* finished is the worst possible outcome: it
+reports success, and whatever was left dangling — a PR still open, a branch never
+pushed, a commit that never left the machine — surfaces days later for someone who
+trusted the report.
+
+Run all of these and read every answer:
+
+```bash
+# 1. Working tree clean: nothing modified, staged or untracked
+git status --porcelain
+
+# 2. No local commit that never reached the remote, on ANY local branch.
+#    Print the upstream too: `%(upstream:track)` alone is blank both for a branch
+#    that is in sync AND for one with no upstream at all, so a branch that was
+#    never pushed would read as clean. An empty `upstream=` is the tell.
+git for-each-ref --format='%(refname:short) upstream=%(upstream:short) %(upstream:track)' refs/heads
+
+# 3. Both long-lived branches exist on the remote
+git ls-remote --heads origin main develop
+
+# 4. develop and main in sync (0 = nothing waiting to be promoted)
+git rev-list --count origin/main..origin/develop
+
+# 5. No pull request left open by this setup
+gh pr list --state open
+
+# 6. The temporary setup branch is gone, locally and remotely
+git branch --list 'chore/git-flow-setup'
+git ls-remote --heads origin 'chore/git-flow-setup'
+
+# 7. Every tag created locally has been pushed
+git tag -l ; git ls-remote --tags origin
+```
+
+A clean result is: (1) empty — (2) every line has a non-empty `upstream=` and no
+`[ahead N]` — (3) both refs listed — (4) exactly `0` — (5) empty — (6) both empty
+— (7) every local tag also on the remote.
+
+**If every check is clean**, say so in the summary as a verified result, not as an
+assumption: *"comprobado: no queda ningún merge, push ni rama pendiente."*
+
+**If anything is outstanding, do not report the setup as complete.** Name exactly what
+is left in terms the user can act on, and **ask permission to finish it** — do not
+silently stop, and do not press on unasked. For example:
+
+> El PR #2 sigue abierto y `develop` tiene 1 commit sin promocionar a `main`.
+> ¿Quieres que lo termine yo?
+
+Wait for the answer. If the user says yes, finish it, then **re-run the audit** before
+writing the summary — the second run is what you report.
+
+One case is *expected* to be outstanding and is not a failure: the rulesets on a
+private repo on a Free plan. That is a decision the user made at prerequisite 5, so
+report it as pending **with its reason**, never as something that went wrong.
+
+### B. The summary, in Spanish
+
+**Write the final summary in Spanish**, always, whatever language this file or the
+user's request was in — unless the user explicitly asks for another language. Keep
+command names, branch names, file paths and check names in their original form; they
+are identifiers, not prose.
+
+Cover every point below. If one does not apply, say so rather than omitting it, so the
+shape of the report is the same every run and nothing can quietly go missing:
+
+- **Repositorio**: URL, y su visibilidad — diciendo que la eligió el usuario, no la
+  skill.
+- **Ramas**: `main` y `develop`, y que ambas existen en el remoto.
+- **Qué llevó el commit inicial**: la lista de ficheros, no "los ficheros del
+  proyecto".
+- **Plantillas y ficheros creados**: `.github/`, `CONTRIBUTING.md`,
+  `docs/git-cheatsheet.md`.
+- **CI**: que se ejecutó, y qué reportó **cada** check por su nombre
+  (`Lint & Type check`, `Python checks`, `Commit messages`). Verdes vacíos en un
+  proyecto sin `pyproject.toml` ni `package.json` son lo esperado: dilo.
+- **Rulesets**: aplicados, o pendientes con el motivo.
+- **Seguridad**: qué quedó activo y qué no está disponible en ese plan.
+- **gitleaks**: que se ejecutó y qué devolvió — o, si no estaba instalado, que el
+  commit inicial fue **sin escanear**, dicho claramente.
+- **Política de merge**: squash hacia `develop`, merge commit de `develop` a `main`.
+- **Qué falló, se saltó o necesitó improvisación**: siempre presente. Si no hubo
+  nada, decir que no hubo nada.
+- **Resultado de la auditoría**: que no queda nada pendiente, o qué queda y qué has
+  preguntado sobre ello.
 
 ## Customization options to consider
 
@@ -351,7 +470,11 @@ When invoking this skill, the user might want variations. Ask if unclear:
 
 ## Troubleshooting
 
-- **"Upgrade to GitHub Pro"** when applying rulesets → repo is private + Free. Either make public or skip.
+- **"Upgrade to GitHub Pro"** when applying rulesets → the repo is private on a Free
+  plan, which is exactly what prerequisite 5 warned about. Skip the step and record the
+  rulesets as pending. Do **not** offer to flip the repo public to get past it: that
+  decision was already made, and turning it public publishes every commit already
+  pushed. Only revisit it if the user raises it.
 - **PR merge fails after applying rulesets** → ensure `bypass_actors` has the admin entry, otherwise even the owner can't merge.
 - **CI jobs are green but empty on first push** → expected; there is no `package.json`/`pyproject.toml` yet. The steps are guarded, but every job still runs and reports, so required status checks are satisfied.
 - **PR stuck on "Expected — Waiting for status to be reported"** → a required context never ran. Almost always a job-level `if` (the job is skipped, so it reports nothing) or a job renamed without updating the ruleset context.
