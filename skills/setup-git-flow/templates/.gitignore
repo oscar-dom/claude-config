@@ -1,5 +1,5 @@
 # =====================================================================
-# Dependencies
+# Dependencias
 # =====================================================================
 node_modules/
 __pycache__/
@@ -10,7 +10,7 @@ env/
 .pnpm-store/
 
 # =====================================================================
-# Build artifacts
+# Artefactos de compilacion
 # =====================================================================
 dist/
 build/
@@ -21,7 +21,7 @@ out/
 .vercel/
 
 # =====================================================================
-# Environment variables and secrets (NEVER COMMIT)
+# Variables de entorno y secretos (NUNCA SE COMMITEAN)
 # =====================================================================
 .env
 .env.local
@@ -30,7 +30,7 @@ out/
 .env.production
 .env.test
 
-# Common secret/credential patterns
+# Patrones habituales de secretos y credenciales
 *.pem
 *.key
 *.cert
@@ -54,12 +54,12 @@ service-account-*.json
 gcp-key-*.json
 aws-credentials*
 
-# Supabase local (if using Supabase)
+# Supabase en local (si se usa Supabase)
 supabase/.branches/
 supabase/.temp/
 
 # =====================================================================
-# IDE / Editor
+# IDE / editor
 # =====================================================================
 .vscode/
 .idea/
@@ -69,14 +69,14 @@ supabase/.temp/
 .cursor/
 
 # =====================================================================
-# OS
+# Sistema operativo
 # =====================================================================
 .DS_Store
 Thumbs.db
 desktop.ini
 
 # =====================================================================
-# Logs
+# Registros
 # =====================================================================
 *.log
 npm-debug.log*
@@ -93,7 +93,7 @@ lerna-debug.log*
 .tsbuildinfo
 
 # =====================================================================
-# Test coverage
+# Cobertura de tests
 # =====================================================================
 coverage/
 *.lcov
