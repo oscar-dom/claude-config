@@ -1,0 +1,3 @@
+# Los scripts se consultan SIEMPRE con finales LF. Con CRLF, un script con shebang
+# falla al ejecutarse ("bad interpreter") en Linux y macOS, y en algunos Git Bash.
+*.sh text eol=lf
