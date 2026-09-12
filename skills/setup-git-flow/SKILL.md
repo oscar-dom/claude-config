@@ -483,63 +483,45 @@ que reportar lo que la auditoría **encontró**, no lo que los pasos pretendían
 
 ### A. Auditoría de cierre: demostrar que nada quedó a medias
 
-**No escribas el resumen de memoria, a partir de los comandos que ejecutaste.**
-Pregúntale a git y a `gh` cuál es el estado real. Un montaje que *casi* termina es el
-peor resultado posible: reporta éxito, y lo que quedó colgando —un PR todavía abierto,
-una rama nunca empujada, un commit que no salió de la máquina— aparece días después
-delante de alguien que se fió del informe.
+**No escribas el resumen de memoria, a partir de los comandos que ejecutaste.** Un
+montaje que *casi* termina es el peor resultado posible: reporta éxito, y lo que quedó
+colgando —un PR todavía abierto, una rama nunca empujada, un commit que no salió de la
+máquina— aparece días después delante de alguien que se fió del informe.
 
-Ejecuta todas estas y lee cada respuesta:
+Esto no se comprueba a ojo. Hay un script que lo hace, y lo que manda es su **código de
+salida**:
 
 ```bash
-# 1. Árbol de trabajo limpio: nada modificado, preparado ni sin seguimiento
-git status --porcelain
-
-# 2. Ningún commit local que no haya llegado al remoto, en CUALQUIER rama local.
-#    Imprime también el upstream: `%(upstream:track)` a secas sale vacío tanto para
-#    una rama sincronizada COMO para una que no tiene upstream ninguno, así que una
-#    rama nunca empujada se leería como limpia. Un `upstream=` vacío es la señal.
-git for-each-ref --format='%(refname:short) upstream=%(upstream:short) %(upstream:track)' refs/heads
-
-# 3. Las dos ramas de vida larga existen en el remoto
-git ls-remote --heads origin main develop
-
-# 4. develop y main sincronizadas (0 = nada esperando a promocionarse)
-git rev-list --count origin/main..origin/develop
-
-# 5. Ningún pull request dejado abierto por este montaje
-gh pr list --state open
-
-# 6. La rama temporal del montaje ya no está, ni en local ni en el remoto
-git branch --list 'chore/git-flow-setup'
-git ls-remote --heads origin 'chore/git-flow-setup'
-
-# 7. Toda etiqueta creada en local está empujada
-git tag -l ; git ls-remote --tags origin
+bash <ruta-de-la-skill>/scripts/auditar-cierre.sh
 ```
 
-El resultado limpio es: (1) vacío — (2) cada línea con un `upstream=` no vacío y sin
-`[ahead N]` — (3) las dos refs listadas — (4) exactamente `0` — (5) vacío — (6) las dos
-vacías — (7) cada etiqueta local también en el remoto.
+| Código | Significa | Qué hacer |
+|---|---|---|
+| `0` | imprime `CERRADO` | puedes escribir el resumen |
+| `1` | imprime `PENDIENTE` y qué falta | **no reportes el montaje como completo** |
 
-**Si todas las comprobaciones salen limpias**, dilo en el resumen como un resultado
-verificado, no como una suposición: *"comprobado: no queda ningún merge, push ni rama
-pendiente."*
+Ejecútalo desde la raíz del proyecto; si lo lanzas desde un subdirectorio se niega y te
+dice por qué. Hace `git fetch --prune` él mismo, porque con refs remotas viejas la mitad
+de las comprobaciones mienten.
 
-**Si queda algo por hacer, no reportes el montaje como completo.** Nombra exactamente lo
-que falta, en términos sobre los que el usuario pueda actuar, y **pide permiso para
-terminarlo**: no te calles, y no sigas adelante sin preguntar. Por ejemplo:
+Comprueba siete cosas: árbol de trabajo limpio, ninguna rama con commits sin empujar ni
+sin upstream, `main` y `develop` en el remoto, `develop` sincronizada con `main`, ningún
+PR abierto, la rama temporal del montaje eliminada en local y en remoto, y todas las
+etiquetas locales subidas.
+
+**Si sale `1`, no te calles y no sigas por tu cuenta.** Di exactamente qué falta —el
+script ya lo lista— y **pide permiso para terminarlo**:
 
 > El PR #2 sigue abierto y `develop` tiene 1 commit sin promocionar a `main`.
 > ¿Quieres que lo termine yo?
 
-Espera la respuesta. Si el usuario dice que sí, termínalo y **vuelve a pasar la
-auditoría** antes de escribir el resumen: lo que reportas es la segunda pasada.
+Si el usuario dice que sí, termínalo y **vuelve a ejecutar el script** antes de escribir
+el resumen: lo que reportas es la segunda pasada, no la primera.
 
-Hay un caso en el que se *espera* que quede algo pendiente y no es un fallo: los rulesets
-en un repositorio privado con plan Free. Eso es una decisión que el usuario tomó en la
-comprobación previa 5, así que repórtalo como pendiente **con su motivo**, nunca como
-algo que salió mal.
+Hay un caso que el script no cubre a propósito, porque no es estado de git: los rulesets
+saltados en un repositorio privado con plan Free. Eso es una decisión que el usuario tomó
+en la comprobación previa 5, así que va al resumen como pendiente **con su motivo**,
+nunca como algo que salió mal.
 
 ### B. El resumen, en español
 
