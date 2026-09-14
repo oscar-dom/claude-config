@@ -107,6 +107,30 @@ Antes de hacer nada, verifica:
    como una decisión pendiente con su motivo. No reabras la pregunta en el paso 7, y no
    lo trates como un fallo.
 
+6. **Permisos de Claude Code: una sola regla, global.** Lo que modifica GitHub (fusionar
+   PR, rulesets, seguridad) va dentro de los scripts de `scripts/`, con los endpoints
+   fijos. Así basta con permitir ejecutar esos scripts, una vez y para todos los repos,
+   en `~/.claude/settings.json`:
+
+   ```json
+   "permissions": { "allow": ["Bash(bash ~/.claude/skills/setup-git-flow/scripts/*)"] }
+   ```
+
+   La regla compara el texto del comando, así que **invoca los scripts siempre
+   exactamente así**: `bash ~/.claude/skills/setup-git-flow/scripts/<script>`. Con otra
+   ruta (`/c/Users/...`, `C:/...`, `<ruta-de-la-skill>`) la regla no casa y vuelve a
+   pedir permiso.
+
+   - Si la regla no está, **no la añadas por tu cuenta**: díselo al usuario y pregúntale.
+     Tras añadirla puede hacer falta reiniciar la sesión.
+   - **No concedas en su lugar `gh api -X PATCH repos/<owner>/*`** ni parecidos: dejaría
+     hacer cualquier PATCH en cualquier repo, incluido volverlo público.
+   - **No crees `.claude/settings.json` dentro del proyecto** para esto. Los permisos son
+     de la persona, no del repositorio.
+
+   Ejecuta **un comando por llamada**, sin cadenas largas unidas con `&&`: el clasificador
+   de permisos las bloquea, y un script ya agrupa lo que tiene que ir junto.
+
 ## Pasos
 
 ### 1. Arranque: asegurar que `main` existe, tiene un commit y tiene upstream
@@ -320,8 +344,9 @@ conservando la estructura de carpetas. Las plantillas son:
 - `.github/PULL_REQUEST_TEMPLATE.md`
 - `.github/ISSUE_TEMPLATE/bug_report.md`
 - `.github/ISSUE_TEMPLATE/feature_request.md`
-- `.github/ISSUE_TEMPLATE/config.yml` — **hay que sustituir el marcador `OWNER/REPO` por
-  la ruta real del repositorio**
+- `.github/ISSUE_TEMPLATE/config.yml` — solo desactiva los issues en blanco. No enlaza a
+  Discussions a propósito: un repositorio nuevo las tiene desactivadas y el enlace daría
+  error
 - `.github/CODEOWNERS` — **hay que sustituir el marcador `@OWNER` por `@$GH_USERNAME`**
 - `.github/workflows/ci.yml`
 - `CONTRIBUTING.md` — **sustituir el marcador `OWNER/REPO` si hay alguna referencia**
@@ -347,7 +372,7 @@ este orden:**
 Mantenerlos separados es lo que hace que el paso 1 sea obligatorio y no opcional. Este
 paso prepara solo rutas con nombre, nunca `git add -A`, así que en un proyecto que ya
 tenga código, cualquier fichero no commiteado en el paso 1 se queda sin seguimiento — y
-como este paso termina en `gh pr merge --squash --admin --delete-branch`, nada saca a la
+como este paso termina fusionando el PR y borrando la rama, nada saca a la
 luz esa omisión. El montaje reporta éxito, el PR está verde, y el código real del
 proyecto sigue sin commitear en el árbol de trabajo.
 
@@ -368,78 +393,68 @@ sin él la chuleta se queda sin seguimiento y no llega nunca al repositorio. Si 
 proyecto no tiene carpeta `docs/` y colocaste la chuleta en la raíz, prepara
 `git-cheatsheet.md` en su lugar.
 
-#### Espera a los checks y léelos antes de fusionar
+#### Fusionar: siempre con el script, que espera al CI
 
 Este es el primer PR del proyecto, y por tanto la primera vez que el CI se ejecuta de
-verdad. **No fusiones a ciegas**: sin rulesets aplicados nada impide que el merge entre
-sin que nadie haya mirado el CI, y el resumen final tiene que reportar qué dijo cada
-check, algo que no puedes saber si no lo has leído.
+verdad. **No fusiones con `gh pr merge` a mano.** Usa el script, que espera a que los
+checks se registren, espera a que terminen, y solo fusiona si están en verde:
 
 ```bash
-gh pr checks --watch    # bloquea hasta que terminan todos; sale distinto de 0 si alguno falla
+bash ~/.claude/skills/setup-git-flow/scripts/fusionar-pr.sh <numero> squash
 ```
 
-Un detalle que hace tropezar: justo después de `gh pr create` los checks **todavía no
-están registrados**, y `gh pr checks` responde que no hay ninguno. No lo interpretes como
-"ya han terminado y está todo bien". Si pasa, espera unos segundos y repite; los checks
-aparecen un momento después de abrirse el PR. Si escribes un bucle de espera propio,
-asegúrate de que exige ver al menos un check antes de dar por concluida la espera, porque
-si no sale en la primera vuelta creyendo que no queda nada pendiente.
-
-Lee los tres por su nombre y quédate con lo que reportaron, porque va al resumen:
-`Lint & Type check`, `Python checks`, `Commit messages`. En un proyecto sin
-`pyproject.toml` ni `package.json` saldrán verdes y vacíos, y eso es lo esperado. Si
-alguno falla, **lee el log antes de tocar nada**: puede estar fallando por un motivo que
-no tiene nada que ver con lo que parece (ver la entrada de incidencias sobre
+Imprime `FUSIONADO` y sale con `0`, o `NO FUSIONADO` con el motivo y sale con `1`. Con
+`1` no sigas: si algún check falló, **lee el log antes de tocar nada**, porque puede
+fallar por algo que no es lo que parece (ver la entrada de incidencias sobre
 `Resource not accessible by integration`).
 
-Solo con los checks leídos, fusiona:
+El script imprime cada check con su resultado: quédate con eso, va al resumen. En un
+proyecto sin `pyproject.toml` ni `package.json`, `Lint & Type check` y `Python checks`
+salen verdes y vacíos, y es lo esperado.
+
+Después sincroniza develop con main. Fíjate en el método: los PR hacia `develop` van con
+squash, pero `develop → main` va con **merge commit** — ver la política de fusión en el
+paso 7. Un comando por llamada:
 
 ```bash
-gh pr merge --squash --admin --delete-branch
-```
-
-Después sincroniza develop con main. Fíjate en el método de fusión: los PR hacia
-`develop` van con squash, pero `develop → main` va con **merge commit** — mira la nota
-sobre la política de fusión en el paso 7.
-
-```bash
-git checkout develop && git pull
+git checkout develop
+git pull
 gh pr create --base main --head develop --title "chore: montaje inicial de Git Flow" --fill
-gh pr checks --watch     # igual que antes: leer antes de fusionar
-gh pr merge --merge --admin
+bash ~/.claude/skills/setup-git-flow/scripts/fusionar-pr.sh <numero> merge
 ```
 
-### 7. Aplicar los rulesets de protección de ramas
+### 7. Configurar GitHub: rulesets y seguridad
 
-Solo si el repositorio es público O el usuario tiene plan de pago. Si la comprobación
-previa 5 se resolvió en un repositorio privado con plan Free, salta este paso: el `403`
-es lo esperado, no es un problema que haya que rodear, y la pregunta de la visibilidad ya
-está contestada — no la vuelvas a hacer aquí. Lleva los rulesets saltados a la auditoría
-de cierre como pendientes, con su motivo.
-
-El directorio `rulesets/` de esta skill contiene los JSON de `main` y `develop`.
-Aplícalos:
+Un único script aplica los rulesets de `main` y `develop` y activa Dependabot y el secret
+scanning. Lee él mismo la visibilidad del repositorio:
 
 ```bash
-# Para main (permite squash y merge commit, exige resolver las conversaciones)
-gh api -X POST repos/$OWNER_REPO/rulesets --input <ruta-de-la-skill>/rulesets/main.json
-
-# Para develop (exige PR, prohíbe force push y borrado)
-gh api -X POST repos/$OWNER_REPO/rulesets --input <ruta-de-la-skill>/rulesets/develop.json
+bash ~/.claude/skills/setup-git-flow/scripts/configurar-github.sh
 ```
 
-Nota: los rulesets usan `actor_id: 5` (rol de administrador) con
-`bypass_mode: pull_request`, lo que significa que los administradores siguen pasando por
-PR pero pueden fusionar ellos mismos.
+Cada línea sale como `OK`, `NO DISPONIBLE` o `FALLO`:
+
+- **`NO DISPONIBLE` no es un fallo.** En un repositorio privado con plan Free, los
+  rulesets devuelven `403` y el secret scanning `422`. Es consecuencia de la visibilidad
+  que eligió el usuario en la comprobación previa 5: no se rodea, no se vuelve a preguntar
+  y no se ofrece hacer público el repositorio. Los rulesets van al resumen como
+  **pendientes, con ese motivo**, y gitleaks en local es la compensación del escaneo.
+- **`FALLO`** es un error de verdad (por ejemplo, el repositorio no existe). Sale con `1`:
+  no sigas sin resolverlo.
+
+Se puede reejecutar sin miedo: si un ruleset con el mismo nombre ya existe, no lo
+duplica.
+
+Los rulesets usan `actor_id: 5` (rol de administrador) con `bypass_mode: pull_request`:
+los administradores siguen pasando por PR, pero pueden fusionar ellos mismos.
 
 **Política de fusión (los dos rulesets permiten squash y merge commit, así que la regla
 es una convención, no algo impuesto — `CONTRIBUTING.md` es la fuente de verdad):**
 
 | PR | Método |
 |----|--------|
-| `feat/*`, `fix/*`, `chore/*`, `docs/*` → `develop` | squash (`gh pr merge --squash`) |
-| `develop` → `main` (release) | merge commit (`gh pr merge --merge`) |
+| `feat/*`, `fix/*`, `chore/*`, `docs/*` → `develop` | `fusionar-pr.sh <n> squash` |
+| `develop` → `main` (release) | `fusionar-pr.sh <n> merge` |
 
 `main` deliberadamente **no** tiene la regla `required_linear_history`: esa regla prohíbe
 los merge commits, así que mantenerla permitiendo a la vez el método merge sería
@@ -448,23 +463,7 @@ entran como merge commits para que los commits de `develop` pasen a ser ancestro
 `main`; hacer squash de `develop → main` separa las dos historias y hace que cada PR de
 release posterior vuelva a listar todo lo anterior.
 
-### 8. Activar las funciones de seguridad
-
-```bash
-gh api -X PATCH repos/$OWNER_REPO \
-  -f 'security_and_analysis[secret_scanning][status]=enabled' \
-  -f 'security_and_analysis[secret_scanning_push_protection][status]=enabled'
-
-gh api -X PUT repos/$OWNER_REPO/vulnerability-alerts
-gh api -X PUT repos/$OWNER_REPO/automated-security-fixes
-```
-
-En un repositorio privado con plan Free, el secret scanning devuelve `422`
-(`Secret scanning is not available for this repository`). No es un fallo del montaje:
-recógelo en el resumen como no disponible en ese plan, y recuerda que gitleaks en local
-es la compensación.
-
-### 9. Documentar el montaje
+### 8. Documentar el montaje
 
 Si el proyecto tiene `CLAUDE.md` y/o `docs/progress.md`, actualízalos con:
 - Un resumen de la estrategia de ramas (o una referencia a `CONTRIBUTING.md`).
@@ -492,7 +491,7 @@ Esto no se comprueba a ojo. Hay un script que lo hace, y lo que manda es su **c�
 salida**:
 
 ```bash
-bash <ruta-de-la-skill>/scripts/auditar-cierre.sh
+bash ~/.claude/skills/setup-git-flow/scripts/auditar-cierre.sh
 ```
 
 | Código | Significa | Qué hacer |
