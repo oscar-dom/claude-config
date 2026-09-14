@@ -1,5 +1,1 @@
 blank_issues_enabled: false
-contact_links:
-  - name: Pregunta o discusión
-    url: https://github.com/OWNER/REPO/discussions
-    about: Para preguntas generales o ideas, usa Discussions en lugar de Issues
