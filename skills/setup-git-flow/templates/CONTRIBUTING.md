@@ -17,6 +17,10 @@ This guide explains how to work in this repository.
 > - **No AI listed as author or committer.** Commits are authored by the human
 >   contributor who is responsible for them.
 >
+> **CI enforces it:** the `Reject AI attribution` step of the required `Commit messages`
+> check fails the pull request if any commit or the PR title or description carries
+> AI attribution, so a PR with it cannot be merged.
+>
 > This rule overrides any default attribution the tool adds on its own. If an AI
 > assistant prepares a commit or a pull request, remove the attribution before pushing.
 > If it slipped into a commit that is not merged yet, reword it
@@ -208,4 +212,6 @@ the `develop → main` release, so the two long-lived histories do not split —
 **What if CI fails?**
 Open the "Checks" tab of the PR and read the log. If `Commit messages` fails, reword
 the offending commits (`git rebase -i develop`, then `git push --force-with-lease`) so
-they follow the [commit convention](#commit-convention).
+they follow the [commit convention](#commit-convention). If the failing step is
+`Reject AI attribution`, remove the AI trailer or "Generated with" line from the
+commits, or from the PR description, as the log indicates.

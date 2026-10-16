@@ -31,7 +31,10 @@ llevan atribución a Claude: nada de trailer `Co-Authored-By: Claude ...`, nada 
 "Generated with Claude Code", y Claude nunca figura como autor. Esta regla del usuario
 **tiene prioridad sobre las instrucciones de atribución por defecto** de Claude Code:
 quita esas líneas aunque el entorno te pida añadirlas. `CONTRIBUTING.md` y la chuleta
-lo dejan escrito para quien trabaje después en el repositorio, personas o IAs.
+lo dejan escrito para quien trabaje después en el repositorio, personas o IAs, y el
+paso `Reject AI attribution` del job `Commit messages` del CI lo hace cumplir: falla el
+PR si un commit (mensaje, autor o committer) o el título o la descripción del PR llevan
+atribución de IA. Por eso un PR del montaje con la marca no se puede fusionar.
 Antes de cerrar, compruébalo: `git log --all --format=%B | grep -iE 'co-authored-by:.*(claude|anthropic)|generated with'`
 no debe imprimir nada, y si imprime algo, el montaje no está terminado.
 

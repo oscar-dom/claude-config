@@ -38,3 +38,54 @@ jobs:
       # @commitlint/config-conventional.
       - name: Validate Conventional Commits
         uses: wagoid/commitlint-github-action@v6
+
+      # Blocking: AI tools must not leave their mark as collaborators (see
+      # CONTRIBUTING.md). Checks every commit in the PR (message, author and
+      # committer) and the PR title and description. The title and body go
+      # through env vars, never interpolated into the script, so their content
+      # cannot inject shell code.
+      - name: Reject AI attribution
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Match AI identities, not human names: "Claude" alone is also a person's
+          # name, so a co-author only counts when it carries an AI email or model.
+          ai_id='noreply@anthropic\.com|@anthropic\.com>|claude (code|opus|sonnet|haiku|fable)|copilot|openai\.com|chatgpt|gemini|cursor ?agent|codex'
+          ai_tool='claude|anthropic|copilot|openai|chatgpt|gemini|cursor|codex|aider'
+          # Only attribution lines count: a commit that merely mentions a tool
+          # ("feat: add gemini client") is fine.
+          pattern="co-authored-by:.*(${ai_id})|generated (with|by) .*(${ai_tool})"
+          found=0
+
+          bad=$(git log --format='%h %an <%ae> / %cn <%ce>' "$BASE_SHA..$HEAD_SHA" | grep -iE "$ai_id" || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Commits authored or committed by an AI tool:"
+            echo "$bad"
+            found=1
+          fi
+
+          for sha in $(git rev-list "$BASE_SHA..$HEAD_SHA"); do
+            hits=$(git log -1 --format=%B "$sha" | grep -inE "$pattern" || true)
+            if [ -n "$hits" ]; then
+              echo "::error::Commit $(git log -1 --format='%h %s' "$sha") contains AI attribution:"
+              echo "$hits"
+              found=1
+            fi
+          done
+
+          hits=$(printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" | grep -inE "$pattern" || true)
+          if [ -n "$hits" ]; then
+            echo "::error::The PR title or description contains AI attribution:"
+            echo "$hits"
+            found=1
+          fi
+
+          if [ "$found" -ne 0 ]; then
+            echo "Remove the attribution (git commit --amend / git rebase -i, then"
+            echo "git push --force-with-lease; edit the PR description) and push again."
+            exit 1
+          fi
+          echo "No AI attribution found."
