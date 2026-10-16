@@ -1,128 +1,40 @@
 name: CI
 
-# Todos los jobs de este workflow se ejecutan SIEMPRE y siempre reportan una
-# conclusion, incluso cuando el proyecto todavia no tiene codigo JS ni Python. Las
-# condiciones van en los *pasos*, nunca en el job: un job saltado a nivel de job no
-# reporta ningun estado, y un check requerido que no reporta nunca bloquea el PR
-# para siempre.
+# Stack-agnostic on purpose: this workflow makes no assumptions about the
+# language, package manager or tooling the project will use. It only enforces
+# Conventional Commits, which applies to any repository. Add build, lint and test
+# jobs here once the project has a stack, and list their job `name:` values as
+# required status checks in the branch rulesets.
+#
+# The job `name:` below ("Commit messages") is the `context` required by the
+# rulesets. Renaming it without updating the rulesets blocks every pull request,
+# because a required check that never reports keeps the PR waiting forever.
 
 on:
   pull_request:
     branches: [main, develop]
-  push:
-    branches: [main, develop]
+
+permissions:
+  contents: read
 
 jobs:
-  lint-and-typecheck:
-    name: Lint & Type check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clonar el repositorio
-        uses: actions/checkout@v4
-
-      - name: Detectar package.json
-        id: check-pkg
-        run: |
-          if [ -f package.json ]; then
-            echo "has_pkg=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_pkg=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No package.json yet, skipping JS/TS checks."
-          fi
-
-      # pnpm tiene que instalarse ANTES de setup-node: si no, `cache: 'pnpm'`
-      # falla al resolver la ruta del almacen de pnpm.
-      - name: Preparar pnpm
-        if: steps.check-pkg.outputs.has_pkg == 'true'
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
-
-      - name: Preparar Node.js
-        if: steps.check-pkg.outputs.has_pkg == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Instalar dependencias
-        if: steps.check-pkg.outputs.has_pkg == 'true'
-        run: pnpm install --frozen-lockfile
-
-      - name: Lint
-        if: steps.check-pkg.outputs.has_pkg == 'true'
-        run: pnpm lint
-
-      - name: Comprobacion de tipos
-        if: steps.check-pkg.outputs.has_pkg == 'true'
-        run: pnpm typecheck
-
-      - name: Construir
-        if: steps.check-pkg.outputs.has_pkg == 'true'
-        run: pnpm build
-
-  python-checks:
-    name: Python checks
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clonar el repositorio
-        uses: actions/checkout@v4
-
-      - name: Detectar pyproject.toml
-        id: check-py
-        run: |
-          if [ -f pyproject.toml ]; then
-            echo "has_py=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_py=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No pyproject.toml yet, skipping Python checks."
-          fi
-
-      - name: Instalar uv
-        if: steps.check-py.outputs.has_py == 'true'
-        uses: astral-sh/setup-uv@v10.0.1
-        with:
-          enable-cache: true
-
-      - name: Instalar dependencias
-        if: steps.check-py.outputs.has_py == 'true'
-        run: uv sync
-
-      - name: Lint (ruff)
-        if: steps.check-py.outputs.has_py == 'true'
-        run: uv run ruff check .
-
-      - name: Comprobacion de formato (ruff)
-        if: steps.check-py.outputs.has_py == 'true'
-        run: uv run ruff format --check .
-
-      - name: Comprobacion de tipos (mypy)
-        if: steps.check-py.outputs.has_py == 'true'
-        run: uv run mypy .
-
-      - name: Tests (pytest)
-        if: steps.check-py.outputs.has_py == 'true'
-        run: uv run pytest
-
   commit-lint:
     name: Commit messages
     runs-on: ubuntu-latest
-    # La action lista los commits del PR por la API, y eso necesita un permiso
-    # explicito: el GITHUB_TOKEN por defecto solo trae contents, y sin esto el job
-    # muere con "Resource not accessible by integration" antes de validar nada.
+    # The action lists the PR commits through the API, which needs an explicit
+    # permission: without pull-requests: read the job dies with
+    # "Resource not accessible by integration" before validating anything.
     permissions:
       contents: read
       pull-requests: read
     steps:
-      - name: Clonar el repositorio
-        if: github.event_name == 'pull_request'
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      # Bloqueante: un commit que no siga Conventional Commits tumba el PR.
-      # Si el repositorio no tiene configuracion de commitlint, la action usa
-      # @commitlint/config-conventional por defecto.
-      - name: Validar Conventional Commits
-        if: github.event_name == 'pull_request'
+      # Blocking: a commit that does not follow Conventional Commits fails the PR.
+      # Without a commitlint config in the repository, the action falls back to
+      # @commitlint/config-conventional.
+      - name: Validate Conventional Commits
         uses: wagoid/commitlint-github-action@v6

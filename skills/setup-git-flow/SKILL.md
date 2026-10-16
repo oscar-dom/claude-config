@@ -11,8 +11,20 @@ contribución.
 
 > Esta skill es personal y está escrita en español a propósito. Lo que nunca se traduce
 > son los **identificadores**: nombres de ramas, rutas de ficheros, comandos, y muy en
-> particular los tres `name:` de los jobs del CI, que son los `context` de los rulesets.
-> Traducir uno de esos bloquea todos los PR para siempre.
+> particular el `name:` del job del CI (`Commit messages`), que es el `context` de los
+> rulesets. Traducirlo bloquea todos los PR para siempre.
+
+**Independiente del stack.** La skill monta el repositorio sin saber qué va a contener:
+no asume lenguaje, gestor de paquetes ni herramientas. El CI solo valida Conventional
+Commits, el `.gitignore` solo cubre secretos, sistema operativo y registros, y ninguna
+plantilla menciona un stack concreto. No añadas jobs de lint, build o tests ni entradas
+específicas de un lenguaje: eso lo hace el proyecto cuando tenga stack.
+
+**Todo lo que entra en el repositorio va en inglés.** Plantillas, `CONTRIBUTING.md`,
+la chuleta, mensajes de commit, títulos y descripciones de PR, issues, y cualquier
+cosa que escribas en `CLAUDE.md` o `docs/progress.md`. Las plantillas ya están en
+inglés: no las traduzcas. Lo único en español es lo que hablas con el usuario: las
+preguntas y el resumen final.
 
 ## Cuándo invocarla
 
@@ -40,20 +52,25 @@ Antes de hacer nada, verifica:
    vez. Si te fías de él, el paso 1 se salta el `git init` porque cree que ya hay repo, y
    el `git add -A` termina preparando **el árbol del padre**, no el del proyecto.
 
-   Pregunta *cuál*, no *si*:
+   Pregunta *dónde estás respecto a la raíz*, no *si hay repo*:
 
    ```bash
-   git rev-parse --show-toplevel 2>/dev/null   # imprime la raíz, o falla si no hay repo
-   pwd
+   git rev-parse --show-prefix 2>/dev/null     # ruta relativa a la raíz del repo
+   git rev-parse --show-toplevel 2>/dev/null   # la raíz, para decírsela al usuario
    ```
+
+   No compares `--show-toplevel` con `pwd`: en Windows el mismo directorio tiene dos
+   formas válidas (`C:/...` y `/c/...`), y la comparación de cadenas da falsos positivos.
+   `--show-prefix` no compara rutas, así que no tiene ese problema — es lo mismo que usa
+   `auditar-cierre.sh`.
 
    Tres resultados, y cada uno lleva a un sitio distinto:
 
-   | `--show-toplevel` | Significa | Qué hacer |
+   | `--show-prefix` | Significa | Qué hacer |
    |---|---|---|
-   | igual que `pwd` | el proyecto ya es su propio repo | continuar |
+   | sale bien y vacío | el proyecto ya es su propio repo | continuar |
    | falla | no hay ningún repo | el paso 1 hace `git init -b main` |
-   | **distinto de `pwd`** | el proyecto está **dentro del repo de otro** | **PARAR y preguntar** |
+   | **sale bien y no vacío** | el proyecto está **dentro del repo de otro** | **PARAR y preguntar** |
 
    En el tercer caso, **para antes de tocar nada** y dile al usuario qué repositorio has
    encontrado y dónde está su raíz. No ejecutes `git add -A`, y no hagas `git init` sin
@@ -143,8 +160,8 @@ upstream del que tirar, y puede que no haya remoto al que preguntar.
 Comprueba qué falta de verdad:
 
 ```bash
-git rev-parse --show-toplevel 2>/dev/null   # ¿hay repo, y es ESTE directorio? (previa 3)
-pwd                                         # compara las dos: si difieren, para
+git rev-parse --show-prefix 2>/dev/null     # ¿hay repo, y es ESTE directorio? (previa 3)
+                                            # vacío = sí; no vacío = para y pregunta
 git rev-parse --verify HEAD 2>/dev/null     # ¿tiene commits?
 git remote get-url origin 2>/dev/null       # ¿tiene remoto?
 ```
@@ -183,7 +200,7 @@ proyecto como base y añade solo los patrones de la skill que falten:
 BASE=$(mktemp) && tr -d '\r' < .gitignore > "$BASE"
 
 { echo ""; echo "# ===== añadido por setup-git-flow ====="; } >> .gitignore
-tr -d '\r' < "<ruta-de-la-skill>/templates/.gitignore" | while IFS= read -r line; do
+tr -d '\r' < ~/.claude/skills/setup-git-flow/templates/.gitignore | while IFS= read -r line; do
   [ -z "$line" ] && continue
   case "$line" in \#*) continue;; esac
   grep -qxF -- "$line" "$BASE" || echo "$line" >> .gitignore
@@ -198,6 +215,11 @@ proyecto. Dos avisos: si **cualquiera** de los dos ficheros usa patrones de nega
 resultado buscando casi-duplicados (la base trae `Thumbs.db`, y un proyecto puede tener
 ya el más amplio `*.db`) — son inofensivos, solo ruido.
 
+La base es deliberadamente independiente del stack: secretos, sistema operativo,
+ficheros de intercambio de editores y registros. Si el proyecto ya tiene código, mira
+qué genera (dependencias descargadas, salidas de compilación, cachés, datos locales) y
+pregunta al usuario antes de añadir esas entradas: la plantilla no las trae a propósito.
+
 **Verifica antes de commitear.** Pregúntale a git directamente, en vez de leer el fichero
 y suponer: `git check-ignore` es la autoridad sobre lo que está realmente excluido.
 
@@ -207,7 +229,7 @@ y suponer: `git check-ignore` es la autoridad sobre lo que está realmente exclu
 git check-ignore -v .env private.pem id_rsa datos/x.db grabacion.wav modelo.gguf
 
 # Y al contrario: el código que DEBE poder versionarse no tiene que imprimir nada.
-git check-ignore -v src/app.py README.md
+git check-ignore -v README.md .env.example
 ```
 
 Después prepara los ficheros, pero **no commitees todavía**:
@@ -258,15 +280,15 @@ algo" es un alto en seco.
 Solo cuando el escaneo esté limpio (o se haya saltado explícitamente) commiteas:
 
 ```bash
-git commit -m "chore: commit inicial"
+git commit -m "chore: initial commit"
 ```
 
-**El idioma del mensaje lo manda el proyecto, no esta skill.** Antes de escribirlo, mira
-si el proyecto declara uno en `CLAUDE.md` o `CONTRIBUTING.md` y respétalo; si no dice
-nada, escribe en español. Lo que no vale es mezclar: un historial con mensajes en dos
-idiomas es la señal de que cada ejecución decidió por su cuenta. El prefijo de
-Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`) va siempre en inglés,
-porque es un identificador que el CI valida.
+**Los mensajes de commit van siempre en inglés**, igual que el resto del contenido del
+repositorio: este, los del paso 6 y los títulos de PR. Lo que no vale es mezclar: un
+historial con mensajes en dos idiomas es la señal de que cada ejecución decidió por su
+cuenta. Escribe la descripción en minúscula y en imperativo (`add`, no `adds` ni
+`Added`): la configuración por defecto de commitlint rechaza un asunto que empiece en
+mayúscula.
 
 `git status` después de `git add -A` es el último punto de control: lista exactamente lo
 que el commit inicial va a publicar. Si aparece algo sensible, o falta algo esperado,
@@ -291,7 +313,7 @@ preguntado antes de que esta línea se ejecute, no descubrir la consecuencia en 
 
 Si el remoto existe pero `main` no tiene upstream: `git push -u origin main`.
 
-#### ⚠️ Revisa `git status` antes de `git add -A`
+#### ⚠️ Revisa `git status` después de `git add -A` y antes del commit
 
 `git add -A` prepara todo lo que no esté ignorado. Sin `.gitignore`, o con uno que perdió
 sus entradas en una sobrescritura, eso puede significar `.env`, `*.pem`, claves privadas,
@@ -349,15 +371,19 @@ conservando la estructura de carpetas. Las plantillas son:
   error
 - `.github/CODEOWNERS` — **hay que sustituir el marcador `@OWNER` por `@$GH_USERNAME`**
 - `.github/workflows/ci.yml`
-- `CONTRIBUTING.md` — **sustituir el marcador `OWNER/REPO` si hay alguna referencia**
+- `CONTRIBUTING.md`
 - `.gitignore` — **ya resuelto en el paso 1**, que lo copia o lo fusiona antes del commit
   inicial. Aquí no hay nada que hacer; no lo vuelvas a copiar encima del fichero
   fusionado, porque eso tiraría las entradas propias del proyecto.
 - `docs/git-cheatsheet.md` — referencia práctica del día a día, para personas y para IAs.
-  Colócalo en `docs/` si el proyecto tiene esa carpeta, y si no en la raíz.
-  `CONTRIBUTING.md` ya lo enlaza como `docs/git-cheatsheet.md`: si lo pones en otro
-  sitio, corrige esos dos enlaces. Referéncialo también desde `CLAUDE.md` si existe —
+  Va **siempre** en `docs/`: crea la carpeta si no existe. `CONTRIBUTING.md` lo enlaza
+  con esa ruta, y el paso 6 la prepara con nombre, así que moverlo rompería las dos
+  cosas. Referéncialo también desde `CLAUDE.md` si existe, con una línea en inglés —
   salvo que el usuario haya pedido no tocar ese fichero, o que ya lo enlace.
+
+Si en el proyecto ya existe alguno de estos ficheros (por ejemplo un `CONTRIBUTING.md`
+propio), **no lo sobrescribas**: díselo al usuario y pregunta si fusionar, conservar el
+suyo o reemplazarlo.
 
 ### 6. Commitear y empujar las plantillas vía PR (NO empujes a main directamente)
 
@@ -382,16 +408,16 @@ seguimiento significa que el paso 1 se saltó o quedó a medias.
 
 ```bash
 git checkout -b chore/git-flow-setup
-git add .github CONTRIBUTING.md .gitignore docs/
-git commit -m "chore: configura Git Flow con plantillas de PR, CI y guía de contribución"
+git add .github CONTRIBUTING.md docs/git-cheatsheet.md
+git commit -m "chore: set up Git Flow with PR templates, CI and contributing guide"
 git push -u origin chore/git-flow-setup
-gh pr create --base develop --title "chore: configura Git Flow" --fill
+gh pr create --base develop --title "chore: set up Git Flow" --fill
 ```
 
-`docs/` tiene que estar en ese `git add` — el paso 5 copia `docs/git-cheatsheet.md`, y
-sin él la chuleta se queda sin seguimiento y no llega nunca al repositorio. Si el
-proyecto no tiene carpeta `docs/` y colocaste la chuleta en la raíz, prepara
-`git-cheatsheet.md` en su lugar.
+Se preparan las rutas exactas que copió el paso 5, y nada más: `docs/git-cheatsheet.md`
+y no `docs/`, para no arrastrar otros ficheros sin seguimiento que el proyecto tuviera
+en esa carpeta. Sin esa ruta, la chuleta se quedaría sin seguimiento y no llegaría
+nunca al repositorio.
 
 #### Fusionar: siempre con el script, que espera al CI
 
@@ -408,9 +434,8 @@ Imprime `FUSIONADO` y sale con `0`, o `NO FUSIONADO` con el motivo y sale con `1
 fallar por algo que no es lo que parece (ver la entrada de incidencias sobre
 `Resource not accessible by integration`).
 
-El script imprime cada check con su resultado: quédate con eso, va al resumen. En un
-proyecto sin `pyproject.toml` ni `package.json`, `Lint & Type check` y `Python checks`
-salen verdes y vacíos, y es lo esperado.
+El script imprime cada check con su resultado: quédate con eso, va al resumen. El CI
+solo tiene un check, `Commit messages`.
 
 Después sincroniza develop con main. Fíjate en el método: los PR hacia `develop` van con
 squash, pero `develop → main` va con **merge commit** — ver la política de fusión en el
@@ -419,7 +444,7 @@ paso 7. Un comando por llamada:
 ```bash
 git checkout develop
 git pull
-gh pr create --base main --head develop --title "chore: montaje inicial de Git Flow" --fill
+gh pr create --base main --head develop --title "chore: initial Git Flow setup" --fill
 bash ~/.claude/skills/setup-git-flow/scripts/fusionar-pr.sh <numero> merge
 ```
 
@@ -439,8 +464,11 @@ Cada línea sale como `OK`, `NO DISPONIBLE` o `FALLO`:
   que eligió el usuario en la comprobación previa 5: no se rodea, no se vuelve a preguntar
   y no se ofrece hacer público el repositorio. Los rulesets van al resumen como
   **pendientes, con ese motivo**, y gitleaks en local es la compensación del escaneo.
-- **`FALLO`** es un error de verdad (por ejemplo, el repositorio no existe). Sale con `1`:
-  no sigas sin resolverlo.
+- **`FALLO`** es un error de verdad: el repositorio no existe, al token le faltan
+  permisos, o GitHub rechazó el JSON de un ruleset. Sale con `1`: no sigas sin
+  resolverlo. El script solo clasifica un error como `NO DISPONIBLE` si el repositorio
+  no es público **y** GitHub responde con su mensaje de plan; un `403` o `422` a secas
+  es `FALLO`, para que un problema real no se disfrace de limitación del plan.
 
 Se puede reejecutar sin miedo: si un ruleset con el mismo nombre ya existe, no lo
 duplica.
@@ -465,7 +493,7 @@ release posterior vuelva a listar todo lo anterior.
 
 ### 8. Documentar el montaje
 
-Si el proyecto tiene `CLAUDE.md` y/o `docs/progress.md`, actualízalos con:
+Si el proyecto tiene `CLAUDE.md` y/o `docs/progress.md`, actualízalos, **en inglés**, con:
 - Un resumen de la estrategia de ramas (o una referencia a `CONTRIBUTING.md`).
 - Que la protección de ramas está activa en `main` y `develop`, o pendiente y por qué.
 - La fecha del montaje.
@@ -505,8 +533,13 @@ de las comprobaciones mienten.
 
 Comprueba siete cosas: árbol de trabajo limpio, ninguna rama con commits sin empujar ni
 sin upstream, `main` y `develop` en el remoto, `develop` sincronizada con `main`, ningún
-PR abierto, la rama temporal del montaje eliminada en local y en remoto, y todas las
-etiquetas locales subidas.
+PR del montaje abierto, la rama temporal del montaje eliminada en local y en remoto, y
+todas las etiquetas locales subidas.
+
+"PR del montaje" son los que salen de `chore/git-flow-setup` y el de `develop` hacia
+`main`. Los demás PR abiertos (los de Dependabot, que el paso 7 activa, o los que ya
+tuviera un repositorio existente) salen como aviso `?` y no bloquean el cierre:
+menciónalos en el resumen, pero no son trabajo a medias.
 
 **Si sale `1`, no te calles y no sigas por tu cuenta.** Di exactamente qué falta —el
 script ya lo lista— y **pide permiso para terminarlo**:
@@ -538,9 +571,9 @@ note:
 - **Qué llevó el commit inicial**: la lista de ficheros, no "los ficheros del proyecto".
 - **Plantillas y ficheros creados**: `.github/`, `CONTRIBUTING.md`,
   `docs/git-cheatsheet.md`.
-- **CI**: que se ejecutó, y qué reportó **cada** check por su nombre
-  (`Lint & Type check`, `Python checks`, `Commit messages`). Verdes vacíos en un proyecto
-  sin `pyproject.toml` ni `package.json` son lo esperado: dilo.
+- **CI**: que se ejecutó, y qué reportó `Commit messages` en cada PR. Recuerda que el CI
+  es independiente del stack a propósito: cuando el proyecto tenga código, habrá que
+  añadirle sus propios jobs y marcarlos como requeridos en los rulesets.
 - **Rulesets**: aplicados, o pendientes con el motivo.
 - **Seguridad**: qué quedó activo y qué no está disponible en ese plan.
 - **gitleaks**: que se ejecutó y qué devolvió — o, si no estaba instalado, que el commit
@@ -557,14 +590,16 @@ Al invocar esta skill el usuario puede querer variaciones. Pregunta si no está 
 - **Modo de un solo desarrollador** frente a equipo: con una sola persona,
   `required_approving_review_count: 0` (el valor por defecto). En equipo, ponlo a 1 o
   más.
-- **CI estricto** frente a permisivo: los rulesets exigen por defecto
-  `Lint & Type check`, `Python checks` y `Commit messages`. Si el usuario quiere fusiones
-  permisivas, quita la regla `required_status_checks` del JSON del ruleset antes de
-  aplicarlo. Si renombras un job en `ci.yml`, actualiza el `context` correspondiente en
-  los dos rulesets: el context es el `name` del job, no su id, y un context que nunca
-  reporta bloquea todos los PR.
-- **Idioma de las plantillas de issues**: están en español, igual que el resto de la
-  skill. Tradúcelas solo si el usuario lo pide.
+- **CI estricto** frente a permisivo: los rulesets exigen por defecto `Commit messages`.
+  Si el usuario quiere fusiones permisivas, quita la regla `required_status_checks` del
+  JSON del ruleset antes de aplicarlo. Si renombras el job en `ci.yml`, actualiza el
+  `context` en los dos rulesets: el context es el `name` del job, no su id, y un context
+  que nunca reporta bloquea todos los PR. Lo mismo vale para los jobs que el proyecto
+  añada más adelante: no basta con crearlos, hay que listarlos en los rulesets si
+  tienen que ser obligatorios.
+- **Revisión en `main`**: el ruleset de `main` exige resolver las conversaciones del PR
+  y el de `develop` no. `CONTRIBUTING.md` lo documenta en una tabla: si cambias una
+  regla de un ruleset, cambia también esa tabla.
 - **Nivel de detalle de la plantilla de PR**: por defecto es intermedio. Algunos equipos
   prefieren algo mínimo.
 
@@ -578,9 +613,6 @@ Al invocar esta skill el usuario puede querer variaciones. Pregunta si no está 
 - **La fusión del PR falla después de aplicar los rulesets** → asegúrate de que
   `bypass_actors` tiene la entrada de administrador; si no, ni el propio dueño puede
   fusionar.
-- **Los jobs del CI salen verdes pero vacíos en el primer push** → es lo esperado:
-  todavía no hay `package.json` ni `pyproject.toml`. Los pasos están protegidos, pero
-  cada job se ejecuta y reporta igual, así que los checks requeridos quedan satisfechos.
 - **PR atascado en "Expected — Waiting for status to be reported"** → un context
   requerido no se ejecutó nunca. Casi siempre es un `if` a nivel de job (el job se salta,
   así que no reporta nada) o un job renombrado sin actualizar el context del ruleset.
