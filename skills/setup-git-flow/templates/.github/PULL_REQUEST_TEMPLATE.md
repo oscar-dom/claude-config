@@ -1,35 +1,35 @@
-## ¿Qué cambia?
+## What changes?
 
-<!-- Resumen breve del cambio. ¿Qué problema resuelve o qué añade? -->
+<!-- Short summary of the change. What problem does it solve or what does it add? -->
 
-## Tipo de cambio
+## Type of change
 
-- [ ] feat: nueva funcionalidad
-- [ ] fix: corrección de bug
-- [ ] chore: mantenimiento, deps, configuración
-- [ ] docs: cambios en documentación
-- [ ] refactor: refactor sin cambio de comportamiento
-- [ ] test: añadir o modificar tests
-- [ ] style: formato, espacios (no afecta lógica)
+- [ ] feat: new feature
+- [ ] fix: bug fix
+- [ ] chore: maintenance, dependencies, configuration
+- [ ] docs: documentation only
+- [ ] refactor: refactor with no behavior change
+- [ ] test: add or update tests
+- [ ] style: formatting, whitespace (no logic change)
 
-## Cómo probarlo
+## How to test it
 
-<!-- Pasos concretos para verificar el cambio en local -->
+<!-- Concrete steps to verify the change locally -->
 
 1. ...
 2. ...
 
-## Screenshots / Vídeos
+## Screenshots / videos
 
-<!-- Si hay cambios visuales, adjunta capturas o GIFs. Si no aplica, borra esta sección. -->
+<!-- If there are visual changes, attach screenshots or GIFs. Otherwise, delete this section. -->
 
 ## Checklist
 
-- [ ] El código compila sin errores ni warnings nuevos
-- [ ] He probado los cambios localmente
-- [ ] He actualizado la documentación si era necesario
-- [ ] Los mensajes de commit siguen Conventional Commits
+- [ ] The change builds and runs without new errors or warnings
+- [ ] I have tested the change locally
+- [ ] I have updated the documentation if needed
+- [ ] Commit messages follow Conventional Commits
 
-## Notas para el revisor
+## Notes for the reviewer
 
-<!-- Algo que el revisor debería tener en cuenta o focos de atención. Si no, borra esta sección. -->
+<!-- Anything the reviewer should keep in mind or focus on. Otherwise, delete this section. -->

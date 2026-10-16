@@ -1,40 +1,39 @@
 ---
 name: Bug report
-about: Reporta un comportamiento incorrecto o inesperado
+about: Report incorrect or unexpected behavior
 title: "[Bug] "
 labels: bug
 assignees: ''
 ---
 
-## Descripción del bug
+## Bug description
 
-<!-- Descripción clara y concisa del problema -->
+<!-- A clear and concise description of the problem -->
 
-## Pasos para reproducirlo
+## Steps to reproduce
 
-1. Ir a '...'
-2. Hacer click en '...'
-3. Ver error
+1. Go to '...'
+2. Do '...'
+3. See the error
 
-## Comportamiento esperado
+## Expected behavior
 
-<!-- Qué debería pasar -->
+<!-- What should happen -->
 
-## Comportamiento actual
+## Actual behavior
 
-<!-- Qué pasa realmente -->
+<!-- What actually happens -->
 
-## Capturas de pantalla
+## Screenshots
 
-<!-- Si aplica, adjunta capturas. Si no, borra esta sección -->
+<!-- If applicable, attach screenshots. Otherwise, delete this section -->
 
-## Entorno
+## Environment
 
-- **Dispositivo:** [ej: iPhone 14, MacBook Pro]
-- **OS:** [ej: iOS 17.2, Windows 11]
-- **Navegador:** [ej: Chrome 120, Safari 17]
-- **Versión de la app:** [ej: commit hash o tag]
+- **OS:** [e.g. Windows 11, macOS 15, Ubuntu 24.04]
+- **Version:** [e.g. commit hash or tag]
+- **Other relevant details:** [e.g. browser, device, runtime version]
 
-## Contexto adicional
+## Additional context
 
-<!-- Cualquier otra info útil: logs, configuración, etc. -->
+<!-- Any other useful information: logs, configuration, etc. -->

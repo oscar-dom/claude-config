@@ -1,36 +1,20 @@
 # =====================================================================
-# Dependencias
+# Stack-agnostic baseline. Add the entries your language and tooling need
+# (dependency folders, build output, caches) once the project has a stack.
 # =====================================================================
-node_modules/
-__pycache__/
-*.pyc
-venv/
-.venv/
-env/
-.pnpm-store/
 
 # =====================================================================
-# Artefactos de compilacion
-# =====================================================================
-dist/
-build/
-out/
-*.egg-info/
-.next/
-.turbo/
-.vercel/
-
-# =====================================================================
-# Variables de entorno y secretos (NUNCA SE COMMITEAN)
+# Environment variables and secrets (NEVER COMMIT)
 # =====================================================================
 .env
 .env.local
 .env.*.local
 .env.development
+.env.staging
 .env.production
 .env.test
 
-# Patrones habituales de secretos y credenciales
+# Common secret and credential patterns
 *.pem
 *.key
 *.cert
@@ -54,47 +38,21 @@ service-account-*.json
 gcp-key-*.json
 aws-credentials*
 
-# Supabase en local (si se usa Supabase)
-supabase/.branches/
-supabase/.temp/
-
 # =====================================================================
-# IDE / editor
-# =====================================================================
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.cursor/
-
-# =====================================================================
-# Sistema operativo
+# Operating system
 # =====================================================================
 .DS_Store
 Thumbs.db
 desktop.ini
 
 # =====================================================================
-# Registros
+# Editor swap and backup files
+# =====================================================================
+*.swp
+*.swo
+*~
+
+# =====================================================================
+# Logs
 # =====================================================================
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# =====================================================================
-# Cache
-# =====================================================================
-.cache/
-.eslintcache
-.tsbuildinfo
-
-# =====================================================================
-# Cobertura de tests
-# =====================================================================
-coverage/
-*.lcov
-.nyc_output/

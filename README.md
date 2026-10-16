@@ -102,12 +102,14 @@ Two jobs, because they catch different things:
 
 ### `setup-git-flow`
 
-Monta una configuracion completa de Git Flow lite en un proyecto nuevo. La skill esta
-escrita en espanol; sus instrucciones y el resumen final van en espanol.
+Monta una configuracion completa de Git Flow lite en un proyecto nuevo, sin asumir
+ningun stack. La skill esta escrita en espanol; sus instrucciones y el resumen final van
+en espanol, pero todo lo que crea en el repositorio (plantillas, documentacion,
+commits y PR) va en ingles.
 
 - Ramas `main` + `develop` con rulesets de proteccion
 - Plantillas de PR e issues, CODEOWNERS
-- CI en GitHub Actions (lint, typecheck, build, commitlint)
+- CI en GitHub Actions independiente del stack: solo valida Conventional Commits
 - `CONTRIBUTING.md` y `docs/git-cheatsheet.md`
 - Conventional Commits, validados y bloqueantes en el CI
 - Dependabot activado, y secret scanning donde el plan lo permite
