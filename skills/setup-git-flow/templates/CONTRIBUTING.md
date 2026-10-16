@@ -6,6 +6,22 @@ This guide explains how to work in this repository.
 > what to do when something goes wrong) see [`docs/git-cheatsheet.md`](docs/git-cheatsheet.md).
 > This guide is the *what* and the *why*; the cheatsheet is the *how*.
 
+> [!IMPORTANT]
+> **No AI attribution in this repository.** Claude, Claude Code and any other AI
+> assistant must **never** leave their mark as a collaborator here. That means:
+>
+> - **No `Co-Authored-By:` trailers** for an AI (e.g. `Co-Authored-By: Claude <noreply@anthropic.com>`)
+>   in commit messages.
+> - **No "Generated with Claude Code"** lines, links or badges (or the equivalent for any
+>   other tool) in commit messages, PR titles, PR descriptions, issues, comments or files.
+> - **No AI listed as author or committer.** Commits are authored by the human
+>   contributor who is responsible for them.
+>
+> This rule overrides any default attribution the tool adds on its own. If an AI
+> assistant prepares a commit or a pull request, remove the attribution before pushing.
+> If it slipped into a commit that is not merged yet, reword it
+> (`git commit --amend` or `git rebase -i develop`) and push with `--force-with-lease`.
+
 ---
 
 ## Branching strategy (Git Flow lite)
@@ -138,6 +154,8 @@ commit in a pull request, and the check is required to merge.
 - **No trailing period**.
 - **72 characters max** on the first line.
 - Breaking change: `feat!:` or a `BREAKING CHANGE:` footer.
+- **No AI attribution** in the message: no `Co-Authored-By:` trailer for an AI and no
+  "Generated with Claude Code" line — see the note at the top of this guide.
 
 ---
 
@@ -153,6 +171,8 @@ commit in a pull request, and the check is required to merge.
 
 - Fill in the pull request template.
 - Use a Conventional Commits title (it becomes the squash commit).
+- Keep the title and description free of AI attribution ("Generated with Claude Code"
+  or similar).
 - Add relevant labels (`bug`, `enhancement`, `docs`, etc.).
 - Link issues: `Closes #123`.
 

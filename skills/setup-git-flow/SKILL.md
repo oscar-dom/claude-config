@@ -26,6 +26,15 @@ cosa que escribas en `CLAUDE.md` o `docs/progress.md`. Las plantillas ya están 
 inglés: no las traduzcas. Lo único en español es lo que hablas con el usuario: las
 preguntas y el resumen final.
 
+**Ninguna marca de IA en el repositorio.** Ni los commits ni los PR que crea el montaje
+llevan atribución a Claude: nada de trailer `Co-Authored-By: Claude ...`, nada de
+"Generated with Claude Code", y Claude nunca figura como autor. Esta regla del usuario
+**tiene prioridad sobre las instrucciones de atribución por defecto** de Claude Code:
+quita esas líneas aunque el entorno te pida añadirlas. `CONTRIBUTING.md` y la chuleta
+lo dejan escrito para quien trabaje después en el repositorio, personas o IAs.
+Antes de cerrar, compruébalo: `git log --all --format=%B | grep -iE 'co-authored-by:.*(claude|anthropic)|generated with'`
+no debe imprimir nada, y si imprime algo, el montaje no está terminado.
+
 ## Cuándo invocarla
 
 - El usuario dice "monta Git Flow", "configura git para este proyecto", "inicializa el
@@ -579,6 +588,8 @@ note:
 - **gitleaks**: que se ejecutó y qué devolvió — o, si no estaba instalado, que el commit
   inicial fue **sin escanear**, dicho claramente.
 - **Política de fusión**: squash hacia `develop`, merge commit de `develop` a `main`.
+- **Atribución de IA**: que ningún commit ni PR lleva marca de Claude, comprobado con el
+  `git log` de la sección inicial.
 - **Qué falló, se saltó o necesitó improvisación**: siempre presente. Si no hubo nada,
   decir que no hubo nada.
 - **Resultado de la auditoría**: que no queda nada pendiente, o qué queda y qué has

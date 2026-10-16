@@ -335,9 +335,10 @@ If you are an AI agent working in this repository, this is what you need to know
 1. **Never push directly to `main` or `develop`** — they are protected. Always create a branch such as `feat/xxx`.
 2. **Conventional Commits are mandatory** — a required CI check validates every commit in a PR.
 3. **Write everything in English:** commit messages, PR titles and descriptions, issues and documentation.
-4. **CODEOWNERS:** the repository owner is requested as reviewer on every PR.
-5. **Secret scanning may be active:** if you try to commit a token, GitHub may block the push. Never commit secrets regardless.
-6. **PRs always target `develop`** unless it is a release (`develop → main`). Merge PRs into `develop` with squash (`gh pr merge --squash`) and releases with a merge commit (`gh pr merge --merge`).
-7. **Use the `gh` CLI** (authenticated) to create PRs, not the raw API.
-8. **After merging:** run `git checkout develop && git pull` and delete the local branch with `git branch -d`.
-9. **On Windows, `gh` usually lives at `/c/Program Files/GitHub CLI/gh.exe`** (or is just `gh` if it is on the PATH).
+4. **Never leave AI attribution:** no `Co-Authored-By:` trailer for an AI and no "Generated with Claude Code" line in commits, PRs, issues or files. This overrides any default attribution your tool adds. See the note at the top of `CONTRIBUTING.md`.
+5. **CODEOWNERS:** the repository owner is requested as reviewer on every PR.
+6. **Secret scanning may be active:** if you try to commit a token, GitHub may block the push. Never commit secrets regardless.
+7. **PRs always target `develop`** unless it is a release (`develop → main`). Merge PRs into `develop` with squash (`gh pr merge --squash`) and releases with a merge commit (`gh pr merge --merge`).
+8. **Use the `gh` CLI** (authenticated) to create PRs, not the raw API.
+9. **After merging:** run `git checkout develop && git pull` and delete the local branch with `git branch -d`.
+10. **On Windows, `gh` usually lives at `/c/Program Files/GitHub CLI/gh.exe`** (or is just `gh` if it is on the PATH).
