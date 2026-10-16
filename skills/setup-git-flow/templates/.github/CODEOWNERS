@@ -1,15 +1,6 @@
-# CODEOWNERS define quién debe revisar cambios en cada parte del código.
-# Cuando se abre un PR que toca estos archivos, los owners son auto-asignados como reviewers.
-# Sintaxis: <patrón> <usuario1> <usuario2> ...
+# CODEOWNERS defines who should review changes to each part of the repository.
+# When a pull request touches these paths, the owners are requested as reviewers.
+# Syntax: <pattern> <user1> <user2> ...
 
-# Owner por defecto de todo el repo
+# Default owner for the whole repository
 *                           @OWNER
-
-# Documentación crítica
-/CLAUDE.md                  @OWNER
-/docs/                      @OWNER
-
-# Configuración del proyecto
-/.github/                   @OWNER
-/package.json               @OWNER
-/tsconfig.json              @OWNER

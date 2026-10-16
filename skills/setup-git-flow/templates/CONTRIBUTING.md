@@ -1,186 +1,217 @@
-# Guía de Contribución
+# Contributing Guide
 
-Esta guía explica cómo trabajar en el repositorio.
+This guide explains how to work in this repository.
 
-> **Referencia rápida:** para el día a día (comandos concretos, resolver conflictos,
-> qué hacer si algo sale mal) tienes [`docs/git-cheatsheet.md`](docs/git-cheatsheet.md).
-> Esta guía es el *qué* y el *por qué*; el cheatsheet es el *cómo*.
+> **Quick reference:** for day-to-day work (exact commands, resolving conflicts,
+> what to do when something goes wrong) see [`docs/git-cheatsheet.md`](docs/git-cheatsheet.md).
+> This guide is the *what* and the *why*; the cheatsheet is the *how*.
+
+> [!IMPORTANT]
+> **No AI attribution in this repository.** Claude, Claude Code and any other AI
+> assistant must **never** leave their mark as a collaborator here. That means:
+>
+> - **No `Co-Authored-By:` trailers** for an AI (e.g. `Co-Authored-By: Claude <noreply@anthropic.com>`)
+>   in commit messages.
+> - **No "Generated with Claude Code"** lines, links or badges (or the equivalent for any
+>   other tool) in commit messages, PR titles, PR descriptions, issues, comments or files.
+> - **No AI listed as author or committer.** Commits are authored by the human
+>   contributor who is responsible for them.
+>
+> **CI enforces it:** the `Reject AI attribution` step of the required `Commit messages`
+> check fails the pull request if any commit or the PR title or description carries
+> AI attribution, so a PR with it cannot be merged.
+>
+> This rule overrides any default attribution the tool adds on its own. If an AI
+> assistant prepares a commit or a pull request, remove the attribution before pushing.
+> If it slipped into a commit that is not merged yet, reword it
+> (`git commit --amend` or `git rebase -i develop`) and push with `--force-with-lease`.
 
 ---
 
-## Estrategia de ramas (Git Flow ligero)
+## Branching strategy (Git Flow lite)
 
 ```
-main      ← producción, intocable, protegida
-  ↑ PR (con review) — merge commit
-develop   ← integración, protegida
-  ↑ PR (con review) — squash
-feat/<descripcion>   ← una rama por feature
-fix/<descripcion>    ← una rama por bugfix
-chore/<descripcion>  ← mantenimiento, deps, configuración
-docs/<descripcion>   ← cambios en documentación
+main      ← production, protected
+  ↑ PR — merge commit
+develop   ← integration, protected
+  ↑ PR — squash
+feat/<description>   ← one branch per feature
+fix/<description>    ← one branch per bug fix
+chore/<description>  ← maintenance, dependencies, configuration
+docs/<description>   ← documentation changes
 ```
 
-### Reglas
-- **Nunca** se hace push directo a `main` o `develop`. Siempre vía Pull Request.
-- Cada cambio se desarrolla en su propia rama, partiendo de `develop`.
-- Los PRs se mergean a `develop`. Cuando hay un conjunto estable, se hace PR `develop → main` para release.
+### Rules
 
-### Política de merge
+- **Never** push directly to `main` or `develop`. Always go through a pull request.
+- Every change is developed on its own branch, created from `develop`.
+- Pull requests are merged into `develop`. When there is a stable set of changes, open a
+  `develop → main` pull request to release it.
 
-Los rulesets de `main` y `develop` permiten **squash y merge commit**, así que GitHub
-te ofrecerá los dos botones. Cuál usar no es opcional, depende del PR:
+### Merge policy
 
-| PR | Método | Botón en GitHub |
-|----|--------|-----------------|
+The `main` and `develop` rulesets allow **both squash and merge commit**, so GitHub
+will offer both buttons. Which one to use is not optional; it depends on the PR:
+
+| PR | Method | GitHub button |
+|----|--------|---------------|
 | `feat/*`, `fix/*`, `chore/*`, `docs/*` → `develop` | **Squash** | "Squash and merge" |
 | `develop` → `main` (release) | **Merge commit** | "Create a merge commit" |
 
-**Por qué el release va con merge commit y no con squash:** `develop` y `main` son
-dos ramas de larga vida. Un squash de `develop → main` no mergea las ramas, crea en
-`main` un commit nuevo que no existe en `develop`, así que las dos historias quedan
-divididas: `main` nunca contiene los commits de `develop`. El efecto práctico es que
-cada PR `develop → main` siguiente vuelve a listar todo lo anterior, porque Git no
-tiene ningún ancestro común reciente para comparar. Con merge commit los commits de
-`develop` pasan tal cual a `main`, quedan como ancestros, y el siguiente release solo
-muestra lo nuevo.
+**Why releases use a merge commit instead of squash:** `develop` and `main` are both
+long-lived branches. Squashing `develop → main` does not merge the branches; it creates
+a new commit on `main` that does not exist on `develop`, so the two histories diverge
+and `main` never contains `develop`'s commits. In practice, every following
+`develop → main` PR lists everything again, because Git has no recent common ancestor
+to compare against. With a merge commit, `develop`'s commits land on `main` as they are,
+become ancestors, and the next release only shows what is new.
 
-Dentro de una rama de feature el squash sí es lo que queremos: la rama es corta,
-desechable, y se borra tras el merge, así que colapsarla en un commit no divide
-ninguna historia y deja `develop` legible (un commit por feature).
+Inside a feature branch, squash is what we want: the branch is short-lived, disposable
+and deleted after the merge, so collapsing it into one commit splits no history and
+keeps `develop` readable (one commit per feature).
 
-Los comandos concretos para cada caso están en
+The exact commands for each case are in
 [`docs/git-cheatsheet.md`](docs/git-cheatsheet.md).
 
 ---
 
-## Flujo de trabajo paso a paso
+## Step-by-step workflow
 
-### 1. Empezar a trabajar en algo nuevo
+### 1. Start something new
 
 ```bash
 git checkout develop
 git pull
-git checkout -b feat/nombre-descriptivo
+git checkout -b feat/short-description
 ```
 
-### 2. Hacer cambios y commits
+### 2. Make changes and commit
 
 ```bash
-git add <archivos>
-git commit -m "feat: descripción del cambio"
+git add <files>
+git commit -m "feat: describe the change"
 ```
 
-(Ver [Convención de commits](#convención-de-commits) más abajo.)
+(See [Commit convention](#commit-convention) below.)
 
-### 3. Subir la rama y abrir PR
+### 3. Push the branch and open a PR
 
 ```bash
-git push -u origin feat/nombre-descriptivo
+git push -u origin feat/short-description
 gh pr create --base develop --fill
 ```
 
-### 4. Resolver feedback y mergear
+### 4. Address feedback and merge
 
-- Espera a que CI pase (verde) y a que recibas review.
-- Si te piden cambios: haces commits adicionales en la misma rama y pusheas. El PR se actualiza solo.
-- Cuando todo esté aprobado: usa **"Squash and merge"** (es un PR a `develop`) para
-  mantener el historial limpio. Si estás mergeando el release `develop → main`, el
-  método es **merge commit** — ver [Política de merge](#política-de-merge).
+- Wait for CI to pass (green).
+- If changes are requested: add more commits to the same branch and push. The PR
+  updates itself.
+- When everything is ready: use **"Squash and merge"** (it is a PR into `develop`) to
+  keep the history clean. If you are merging the `develop → main` release, the method
+  is **merge commit** — see [Merge policy](#merge-policy).
 
-### 5. Limpiar después del merge
+### 5. Clean up after the merge
 
 ```bash
 git checkout develop
 git pull
-git branch -d feat/nombre-descriptivo
+git branch -d feat/short-description
 ```
 
 ---
 
-## Convención de commits
+## Commit convention
 
-Usamos [Conventional Commits](https://www.conventionalcommits.org/).
+We use [Conventional Commits](https://www.conventionalcommits.org/). CI validates every
+commit in a pull request, and the check is required to merge.
 
-### Formato
+### Format
 
 ```
-<tipo>: <descripción corta en imperativo>
+<type>: <short description in the imperative mood>
 
-[cuerpo opcional con más contexto]
+[optional body with more context]
 
-[footer opcional con BREAKING CHANGE, refs a issues, etc.]
+[optional footer with BREAKING CHANGE, issue references, etc.]
 ```
 
-### Tipos
+### Types
 
-| Tipo | Cuándo usar | Ejemplo |
-|------|-------------|---------|
-| `feat` | Nueva funcionalidad para el usuario | `feat: añade login con Google` |
-| `fix` | Corrección de bug | `fix: corrige error en validación` |
-| `chore` | Mantenimiento, deps, build, configs | `chore: actualiza dependencias` |
-| `docs` | Solo cambios en documentación | `docs: documenta API de pagos` |
-| `refactor` | Refactor sin cambio de comportamiento | `refactor: simplifica utils` |
-| `test` | Añadir o modificar tests | `test: añade tests de auth` |
-| `style` | Formato, espacios (no afecta lógica) | `style: formatea con prettier` |
-| `perf` | Mejora de rendimiento | `perf: cachea queries pesadas` |
+| Type | When to use it | Example |
+|------|----------------|---------|
+| `feat` | New user-facing functionality | `feat: add sign-in with Google` |
+| `fix` | Bug fix | `fix: handle empty input in validation` |
+| `chore` | Maintenance, dependencies, configuration | `chore: update dependencies` |
+| `docs` | Documentation only | `docs: document the payments API` |
+| `refactor` | Refactor with no behavior change | `refactor: simplify date helpers` |
+| `test` | Add or update tests | `test: add tests for authentication` |
+| `style` | Formatting, whitespace (no logic change) | `style: apply formatter` |
+| `perf` | Performance improvement | `perf: cache expensive queries` |
+| `build` | Build system or build dependencies | `build: add bundle analyzer` |
+| `ci` | CI/CD changes | `ci: add test job` |
+| `revert` | Revert a previous commit | `revert: undo "feat: add X"` |
 
-### Reglas
+### Rules
 
-- Descripción en **imperativo, presente** ("añade", no "añadido").
-- **Minúscula** al inicio.
-- **Sin punto final**.
-- **Máx 72 caracteres** en la primera línea.
-- Si hay breaking change: `feat!:` o añadir `BREAKING CHANGE:` en el footer.
-
----
-
-## Pull Requests
-
-### Antes de abrir un PR
-
-- [ ] La rama está actualizada con `develop`.
-- [ ] Has probado los cambios en local.
-- [ ] CI pasa en local (lint, typecheck, build).
-- [ ] Has actualizado documentación si era necesario.
-
-### Al abrir un PR
-
-- Usa la plantilla auto-rellenada.
-- Título en formato Conventional Commits (será el squash commit).
-- Asigna labels relevantes (`bug`, `enhancement`, `docs`, etc.).
-- Vincula issues: `Closes #123`.
-
-### Revisión
-
-- Mínimo **1 aprobación** antes de mergear (configurable según tamaño del equipo).
-- Todos los **checks de CI deben pasar**.
-- Resolver todas las conversaciones antes de mergear.
+- Description in the **imperative, present tense** ("add", not "added" or "adds").
+- **Lowercase** first letter.
+- **No trailing period**.
+- **72 characters max** on the first line.
+- Breaking change: `feat!:` or a `BREAKING CHANGE:` footer.
+- **No AI attribution** in the message: no `Co-Authored-By:` trailer for an AI and no
+  "Generated with Claude Code" line — see the note at the top of this guide.
 
 ---
 
-## Configuración local recomendada
+## Pull requests
 
-### Editor
+### Before opening a PR
 
-Recomendado: VS Code con extensiones:
-- ESLint
-- Prettier
-- GitLens
-- Conventional Commits
+- [ ] The branch is up to date with `develop`.
+- [ ] You have tested the changes locally.
+- [ ] You have updated the documentation if needed.
+
+### When opening a PR
+
+- Fill in the pull request template.
+- Use a Conventional Commits title (it becomes the squash commit).
+- Keep the title and description free of AI attribution ("Generated with Claude Code"
+  or similar).
+- Add relevant labels (`bug`, `enhancement`, `docs`, etc.).
+- Link issues: `Closes #123`.
+
+### Review and merge requirements
+
+What the branch rulesets enforce:
+
+| | `develop` | `main` |
+|---|---|---|
+| Changes only through a pull request | yes | yes |
+| Required check: `Commit messages` | yes | yes |
+| Required approvals | 0 | 0 |
+| All review conversations resolved | no | yes |
+| Force push and branch deletion | blocked | blocked |
+
+Approvals default to 0 so a solo maintainer can merge their own pull requests. For a
+team, raise `required_approving_review_count` in the rulesets to 1 or more.
 
 ---
 
-## Preguntas frecuentes
+## FAQ
 
-**¿Y si meto la pata y commiteo en `main` por error?**
-No pasa nada — `main` está protegida y rechazará el push. Mueves los commits a una rama nueva: `git branch fix/lo-que-sea && git reset --hard origin/main`.
+**What if I commit to `main` by mistake?**
+Nothing breaks — `main` is protected and will reject the push. Move the commits to a
+new branch: `git branch fix/whatever && git reset --hard origin/main`.
 
-**¿Squash, merge o rebase?**
-Squash para los PRs de feature a `develop` (un commit limpio por feature). Merge commit
-para el release `develop → main`, para no dividir las dos historias de larga vida — ver
-[Política de merge](#política-de-merge). Rebase, solo para mantener tu rama al día con
-`develop`, nunca para mergear.
+**Squash, merge or rebase?**
+Squash for feature PRs into `develop` (one clean commit per feature). Merge commit for
+the `develop → main` release, so the two long-lived histories do not split — see
+[Merge policy](#merge-policy). Rebase only to keep your branch up to date with
+`develop`, never to merge.
 
-**¿Qué hago si el CI falla?**
-Lee los logs en la pestaña "Checks" del PR. Si falla `lint` → corre `pnpm lint --fix`. Si falla `typecheck` → corre `pnpm typecheck`. Si es algo confuso, pregunta.
+**What if CI fails?**
+Open the "Checks" tab of the PR and read the log. If `Commit messages` fails, reword
+the offending commits (`git rebase -i develop`, then `git push --force-with-lease`) so
+they follow the [commit convention](#commit-convention). If the failing step is
+`Reject AI attribution`, remove the AI trailer or "Generated with" line from the
+commits, or from the PR description, as the log indicates.

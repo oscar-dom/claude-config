@@ -94,14 +94,36 @@ else
   aviso "4. no se puede comparar: falta origin/main o origin/develop"
 fi
 
-# 5. Ningun PR abierto
+# 5. Ningun PR del montaje abierto.
+#    Solo cuentan los PR que abre el montaje: desde la rama temporal, y el de
+#    develop hacia main. Los demas (Dependabot, que el paso 7 activa y puede
+#    abrir PR enseguida, o PR que ya existian en el repo) no son trabajo a medias
+#    del montaje: se listan como aviso, pero no lo dejan PENDIENTE para siempre.
 if command -v gh >/dev/null 2>&1; then
-  ABIERTOS=$(gh pr list --state open --json number,title 2>/dev/null)
-  if [ -z "$ABIERTOS" ] || [ "$ABIERTOS" = "[]" ]; then
-    ok "5. ningun pull request abierto"
+  if ! TODOS=$(gh pr list --state open --json number,title,headRefName,baseRefName \
+      --jq '.[] | "#\(.number)|\(.headRefName)|\(.baseRefName)|\(.title)"' 2>/dev/null); then
+    falta "5. no se pudo consultar la lista de pull requests"
   else
-    falta "5. hay pull requests abiertos:"
-    gh pr list --state open 2>/dev/null | sed 's/^/        /'
+    PROPIOS=""; AJENOS=""
+    while IFS='|' read -r num cabeza base titulo; do
+      [ -z "$num" ] && continue
+      linea="        $num $cabeza -> $base: $titulo\n"
+      if [ "$cabeza" = "$TEMPORAL" ] || { [ "$cabeza" = "develop" ] && [ "$base" = "main" ]; }; then
+        PROPIOS="${PROPIOS}${linea}"
+      else
+        AJENOS="${AJENOS}${linea}"
+      fi
+    done <<< "$TODOS"
+    if [ -z "$PROPIOS" ]; then
+      ok "5. ningun pull request del montaje abierto"
+    else
+      falta "5. hay pull requests del montaje abiertos:"
+      printf '%b' "$PROPIOS"
+    fi
+    if [ -n "$AJENOS" ]; then
+      aviso "5. otros pull requests abiertos, ajenos al montaje (no bloquean):"
+      printf '%b' "$AJENOS"
+    fi
   fi
 else
   aviso "5. gh no esta instalado: no se puede comprobar si hay PR abiertos"

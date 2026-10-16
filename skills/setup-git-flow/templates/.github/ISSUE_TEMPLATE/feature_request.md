@@ -1,27 +1,27 @@
 ---
 name: Feature request
-about: Sugiere una nueva funcionalidad o mejora
+about: Suggest a new feature or improvement
 title: "[Feature] "
 labels: enhancement
 assignees: ''
 ---
 
-## Problema o necesidad
+## Problem or need
 
-<!-- ¿Qué problema resolvería esta funcionalidad? ¿Qué dolor tienes ahora mismo? -->
+<!-- What problem would this feature solve? What is painful right now? -->
 
-## Solución propuesta
+## Proposed solution
 
-<!-- Descripción clara de qué te gustaría que ocurra -->
+<!-- A clear description of what you would like to happen -->
 
-## Alternativas consideradas
+## Alternatives considered
 
-<!-- Otras formas de resolver el mismo problema que has pensado -->
+<!-- Other ways of solving the same problem you have thought about -->
 
-## Mockups / referencias
+## Mockups / references
 
-<!-- Capturas, sketches, o links a referencias visuales/funcionales si aplican -->
+<!-- Screenshots, sketches or links to visual or functional references, if any -->
 
-## Contexto adicional
+## Additional context
 
-<!-- Cualquier otra información que ayude a entender la propuesta -->
+<!-- Any other information that helps understand the proposal -->

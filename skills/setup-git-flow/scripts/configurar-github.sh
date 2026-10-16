@@ -25,13 +25,23 @@ VIS=$(gh repo view "$REPO" --json visibility --jq .visibility 2>/dev/null)
 echo "Configurando $REPO (visibilidad: $VIS)"
 echo "==================="
 
+# Un error solo cuenta como limite del plan si el repo NO es publico y GitHub lo
+# dice con su mensaje de plan. Un 403 o 422 a secas no basta: GitHub devuelve 422
+# tambien para un ruleset con JSON invalido, y 403 cuando al token le faltan
+# permisos. Clasificar eso como "no disponible" dejaria el repo sin proteccion y
+# el resumen culparia al plan.
+es_limite_de_plan() {
+  [ "$VIS" != "PUBLIC" ] || return 1
+  printf '%s' "$1" | grep -qiE 'Upgrade to GitHub Pro|make this repository public|not available for this repository|Advanced Security'
+}
+
 # Ejecuta una llamada y la clasifica: OK, NO DISPONIBLE (plan) o FALLO.
 llamar() {
   etiqueta="$1"; shift
   salida=$(gh api "$@" 2>&1); codigo=$?
   if [ $codigo -eq 0 ]; then
     printf '  OK            %s\n' "$etiqueta"
-  elif printf '%s' "$salida" | grep -qE 'HTTP 403|HTTP 422|Upgrade to GitHub Pro|not available'; then
+  elif es_limite_de_plan "$salida"; then
     printf '  NO DISPONIBLE %s (el plan o la visibilidad no lo permiten)\n' "$etiqueta"
   else
     printf '  FALLO         %s\n' "$etiqueta"
@@ -49,9 +59,13 @@ llamar "secret scanning y push protection"        -X PATCH "repos/$REPO" --silen
 # Rulesets: solo se crean si no existe ya uno con el mismo nombre, para que
 # reejecutar el script no los duplique.
 EXISTENTES=$(gh api "repos/$REPO/rulesets" --jq '.[].name' 2>&1); cod=$?
-if [ $cod -ne 0 ] && printf '%s' "$EXISTENTES" | grep -qE 'HTTP 403|Upgrade to GitHub Pro'; then
+if [ $cod -ne 0 ] && es_limite_de_plan "$EXISTENTES"; then
   echo "  NO DISPONIBLE rulesets de proteccion (necesitan repo publico o GitHub Pro)"
   echo "                va al resumen como PENDIENTE, con este motivo"
+elif [ $cod -ne 0 ]; then
+  printf '  FALLO         no se pudieron listar los rulesets\n'
+  printf '%s\n' "$EXISTENTES" | head -3 | sed 's/^/                /'
+  FALLOS=$((FALLOS + 1))
 else
   for f in "$SKILL_DIR"/rulesets/*.json; do
     nombre=$(sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' "$f" | head -1)
