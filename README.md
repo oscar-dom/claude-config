@@ -9,7 +9,8 @@ claude-config/
 ├── skills/                 # Custom skills for Claude Code
 │   └── setup-git-flow/    # Sets up Git Flow lite (main+develop+protections)
 ├── scripts/                # Repo tooling used by CI
-├── .github/workflows/      # Validates the skills' workflow templates
+├── tests/                  # Tests of the skills' scripts (run by CI)
+├── .github/workflows/      # Validates templates and runs the tests
 ├── install.ps1             # Windows installer
 └── install.sh              # macOS/Linux installer
 ```
@@ -74,8 +75,9 @@ cmd /c mklink /J "$HOME\.claude\skills\setup-git-flow" "$HOME\Desktop\GitHub\cla
 ```
 
 ```bash
-# macOS/Linux
-ln -sfn ~/Desktop/GitHub/claude-config/skills/setup-git-flow ~/.claude/skills/setup-git-flow
+# macOS/Linux: remove the copy first, or ln would put the link inside it
+rm -rf ~/.claude/skills/setup-git-flow
+ln -s ~/Desktop/GitHub/claude-config/skills/setup-git-flow ~/.claude/skills/setup-git-flow
 ```
 
 Both installers detect a linked destination and skip it, so re-running them is safe.
@@ -83,65 +85,101 @@ Keep using the installer on every *other* machine.
 
 ## CI
 
-`.github/workflows/lint-templates.yml` validates the workflow templates the skills
-ship. They live under `skills/*/templates/.github/workflows/` and this repo never
-runs them, so without this they would only be validated once a skill had already
-copied them into a real project.
+`.github/workflows/lint-templates.yml` runs on every pull request and push to `main`
+and `develop`. The skills ship files this repository never runs itself (workflow
+templates, scripts that talk to GitHub), so without it they would only be tested
+once a skill had already copied them into a real project.
 
-Three jobs, because they catch different things:
+| Job | What it catches |
+|---|---|
+| **actionlint** | workflow syntax, expressions, runner labels, shellcheck over `run:` blocks |
+| **Action refs resolve** (`scripts/check-action-refs.sh`) | a `uses: owner/repo@ref` whose ref does not exist. actionlint only checks the line is well-formed: `astral-sh/setup-uv@v10` passes it and still fails at runtime |
+| **Commit convention in sync** (`scripts/check-convention-sync.sh`) | the commit convention in `setup-git-flow/scripts/lib.sh` drifting from the copy in the CI template, which runs in the user's repository and cannot read the skill |
+| **Script tests** (`tests/test-setup-git-flow.sh`), on Ubuntu, Windows (Git Bash) and macOS | regressions in `setup-git-flow`'s scripts; see below |
 
-- **actionlint** — workflow syntax, expressions, runner labels, shellcheck over
-  `run:` blocks.
-- **Action refs resolve** (`scripts/check-action-refs.sh`) — resolves every
-  `uses: owner/repo@ref` against the GitHub API. actionlint checks that a `uses:`
-  line is *well-formed*, never that the ref exists; `astral-sh/setup-uv@v10` passes
-  actionlint cleanly and still fails at runtime, because Astral stopped publishing
-  floating major tags after v7.
-- **Commit convention in sync** (`scripts/check-convention-sync.sh`) — the commit
-  convention lives both in `setup-git-flow/scripts/lib.sh` (used by `ship.sh` and
-  `hotfix.sh`) and in the CI template, which runs in the user's repository and
-  cannot read the skill. If the two drift, the agent would ship titles the CI
-  rejects; this job fails first.
+Run the tests locally with `bash tests/test-setup-git-flow.sh`.
 
 ## Available skills
 
 ### `setup-git-flow`
 
-Sets up a complete Git Flow lite configuration in a new project, without assuming any
-stack. The skill, its scripts and everything it creates in the repository (templates,
-documentation, commits and PRs) are in English; Claude talks to you in your language.
+Sets up a professional Git Flow lite repository in a new or existing project, without
+assuming any stack, and leaves an AI agent able to run the daily git work for you
+with one confirmation per operation. Everything it puts in the repository is in
+English; Claude talks to you in your language.
 
-- `main` + `develop` (default branch) with rulesets whose required check only accepts
-  GitHub Actions, and immutable `v*` tags
-- Merge settings: squash into `develop`, merge commit into `main`, the PR title as the
-  commit message (no body), no rebase, branches deleted on merge
-- If the repository already exists with `master`, asks whether to rename it to `main`
-  first
-- Stack-agnostic CI: validates the PR title (and every commit on PRs into `main`) and
-  the source of PRs into `main`
-- PR and issue templates, CODEOWNERS, `.gitattributes`, a minimal `.editorconfig` and
-  Dependabot for GitHub Actions only
-- `CONTRIBUTING.md` and `docs/git-cheatsheet.md` with releases and hotfixes
-- Secret scanning and Dependabot where the plan allows them
+**Trigger:** ask Claude to *"set up Git Flow"*, *"configure git for this project"* or
+*"monta Git Flow"*.
 
-What it always does, on every run:
+#### What the setup does
 
-- **Reads the GitHub plan and asks for the visibility** before creating the repository,
-  showing what each option costs on that plan. There is no default.
-- **Asks who will manage the repository** (Claude Code, another AI or people only).
-  With an AI it adds `CLAUDE.md` or `AGENTS.md` with daily recipes: the agent looks
-  at your changes, proposes one plan in plain language, asks once and ships it with
-  `ship.sh` (branch, commit, PR, CI, merge, cleanup), releases it with `release.sh`
-  (release PR, CI, merge commit, tag, GitHub release) or fixes production with
-  `hotfix.sh` (patch release from `main`, then the fix back into `develop`).
-- **Only with an AI, asks whether to forbid AI attribution** (`Co-Authored-By:`
-  trailers, "Generated with" lines). With a yes, a CI step blocks PRs that carry it
-  and, with Claude Code, a project `.claude/settings.json` turns it off at the source.
-  With a no, or with people only, nothing about it is added.
-- **Audits the close** before declaring anything done: no open PRs, unpushed commits,
-  branches without upstream or pending promotions, and it reads back from GitHub the
-  merge settings, rulesets and required check it applied. If something is missing, it
-  says so and asks for permission to finish instead of reporting success.
+1. **Asks before deciding anything:** the repository's visibility (showing what each
+   option costs on your GitHub plan; there is no default), who will manage it (Claude
+   Code, another AI or people only) and, only with an AI, whether to forbid AI
+   attribution (`Co-Authored-By:` trailers, "Generated with" lines).
+2. **Creates the branches:** `main` and `develop` (the default). If the repository
+   already exists with `master`, it asks whether to rename it first.
+3. **Configures GitHub:** squash into `develop`, merge commit into `main`, the PR title
+   as the commit message, no rebase, branches deleted on merge; rulesets so nothing
+   reaches `main` or `develop` without a PR and a green CI check (bound to GitHub
+   Actions), and `v*` tags that cannot be moved or deleted; Dependabot and secret
+   scanning where the plan allows.
+4. **Adds the templates:** a stack-agnostic CI that validates the PR title as a
+   Conventional Commit (every commit on PRs into `main`) and that only `develop` and
+   `hotfix/*` reach `main`; PR and issue templates, CODEOWNERS, `CONTRIBUTING.md`,
+   `docs/git-cheatsheet.md`, `.gitattributes`, a minimal `.editorconfig`, Dependabot
+   for GitHub Actions only, and `CLAUDE.md` or `AGENTS.md` if an AI manages the repo.
+5. **Audits the result:** reads back from GitHub what it applied and refuses to report
+   success while anything is pending.
 
-**Trigger:** ask Claude to *"set up Git Flow"*, *"configure git for this project"*, or
-the Spanish *"monta Git Flow"*, in any new project.
+On a private repository on the Free plan, GitHub does not offer rulesets or secret
+scanning: the skill says so, applies everything else and does not push you to make
+the repository public.
+
+#### Daily use, once it is set up
+
+Tell the agent what you want in plain words; it inspects your changes, proposes one
+plan, asks once and runs one script:
+
+| You say | Script | What it does |
+|---|---|---|
+| "upload today's work", "commit this" | `ship.sh` | branch from `develop` → commit → PR → waits for the CI → squash merge → back on an up-to-date `develop` |
+| "publish a version" | `release.sh` | suggests the next SemVer from the commits (and pending Dependabot updates) → release PR → merge commit into `main` → tag → GitHub release |
+| "production is broken" | `hotfix.sh` | branch from `main` → fix → PR → merge → patch tag and release → the fix back into `develop` |
+
+The scripts stop with a clear reason instead of improvising (red CI, conflicts,
+nothing to ship, a lower version), and running one again after an interruption
+continues where it stopped.
+
+#### Requirements
+
+- `git`, and `gh` authenticated (`gh auth login`). Optional: `gitleaks`, to scan the
+  initial commit for secrets.
+- The skill installed on every machine you work from (see [Setup](#setup-on-a-new-device)).
+- For the one-confirmation flow, one rule in `~/.claude/settings.json`; without it
+  Claude Code asks permission for each git command. The skill never adds it for you:
+
+  ```json
+  "permissions": { "allow": ["Bash(bash ~/.claude/skills/setup-git-flow/scripts/*)"] }
+  ```
+
+#### Limits, honestly
+
+- **GitHub only**, and **Git Flow lite only** (`main` + `develop`); not GitHub Flow or
+  trunk-based.
+- **The CI only checks the git workflow.** Build, lint and test jobs are the project's
+  to add, and to mark as required in the rulesets.
+- **Tuned for a solo maintainer:** pull requests need no approvals. For a team, raise
+  the approvals in the rulesets; `ship.sh` then stops at "needs review" until someone
+  approves, and you run it again.
+- **Conflicts and red CI are yours** (or the agent's to explain): the scripts detect
+  them and stop cleanly, they do not resolve them.
+- Each repository's `CLAUDE.md` adds about 100 lines to every agent session there.
+
+#### How it is tested
+
+`tests/test-setup-git-flow.sh` runs the scripts unchanged against a local remote and a
+fake `gh` that really merges, on Ubuntu, Windows and macOS: 91 checks covering normal
+runs, every refusal and resuming after an interruption. They were checked by breaking
+the scripts on purpose. What they cannot cover is GitHub itself (the real `gh`
+output and API): that is confirmed by using the skill on a real repository.

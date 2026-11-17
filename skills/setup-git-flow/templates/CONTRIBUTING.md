@@ -46,8 +46,8 @@ Two special branches only exist when needed:
 - `hotfix/<description>` — an urgent fix for production. Branches from `main`, merges
   back into `main`, and then a branch cut from `main` is merged into `develop` so the
   fix is not lost.
-- `chore/sync-<version>` — that branch: cut from `main` after a hotfix, merged into
-  `develop`.
+- `chore/sync-<version>` — brings a released hotfix back: cut from `main`, merged
+  into `develop`.
 
 ### Rules
 
