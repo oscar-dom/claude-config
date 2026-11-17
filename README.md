@@ -107,18 +107,22 @@ ningun stack. La skill esta escrita en espanol; sus instrucciones y el resumen f
 en espanol, pero todo lo que crea en el repositorio (plantillas, documentacion,
 commits y PR) va en ingles.
 
-- Ramas `main` + `develop` con rulesets de proteccion
-- Plantillas de PR e issues, CODEOWNERS
-- CI en GitHub Actions independiente del stack: solo valida Conventional Commits
-- `CONTRIBUTING.md` y `docs/git-cheatsheet.md`
-- Conventional Commits, validados y bloqueantes en el CI
-- Dependabot activado, y secret scanning donde el plan lo permite
+- Ramas `main` + `develop` (rama por defecto) con rulesets, y etiquetas `v*` inmutables
+- Ajustes de fusion: squash hacia `develop`, merge commit hacia `main`, el titulo del PR
+  como mensaje de commit, sin rebase, ramas borradas al fusionar
+- CI independiente del stack: valida el titulo del PR (y cada commit en los PR hacia
+  `main`), el origen de los PR hacia `main` y la ausencia de atribucion de IA
+- Plantillas de PR e issues, CODEOWNERS, `.gitattributes`, `.editorconfig` minimo y
+  Dependabot solo para las GitHub Actions
+- `CONTRIBUTING.md` y `docs/git-cheatsheet.md` con releases y hotfixes
+- Secret scanning y Dependabot donde el plan lo permite
 
-Dos cosas que hace siempre, en cada ejecucion:
+Tres cosas que hace siempre, en cada ejecucion:
 
-- **Pregunta la visibilidad del repositorio** antes de crearlo. No hay valor por
-  defecto: privado y publico tienen costes distintos (los rulesets y el secret scanning
-  son gratis en publico) y la decision es del usuario.
+- **Lee el plan de GitHub y pregunta la visibilidad** antes de crear el repositorio,
+  ensenando lo que cada opcion cuesta en ese plan. No hay valor por defecto.
+- **Pregunta quien gestionara el repositorio** (Claude Code, otra IA o solo personas)
+  y solo entonces anade `CLAUDE.md` + `.claude/settings.json` o `AGENTS.md`.
 - **Audita el cierre** antes de dar nada por terminado: que no queden PR abiertos,
   commits sin empujar, ramas sin upstream ni promociones pendientes. Si queda algo, lo
   dice y pide permiso para terminarlo en vez de reportar exito.
