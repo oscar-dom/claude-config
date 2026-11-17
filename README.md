@@ -107,9 +107,11 @@ ningun stack. La skill esta escrita en espanol; sus instrucciones y el resumen f
 en espanol, pero todo lo que crea en el repositorio (plantillas, documentacion,
 commits y PR) va en ingles.
 
-- Ramas `main` + `develop` (rama por defecto) con rulesets, y etiquetas `v*` inmutables
+- Ramas `main` + `develop` (rama por defecto) con rulesets cuyo check obligatorio solo
+  acepta GitHub Actions, y etiquetas `v*` inmutables
 - Ajustes de fusion: squash hacia `develop`, merge commit hacia `main`, el titulo del PR
-  como mensaje de commit, sin rebase, ramas borradas al fusionar
+  como mensaje de commit (sin cuerpo), sin rebase, ramas borradas al fusionar
+- Si el repo ya existe con `master`, pregunta si renombrarla a `main` antes de nada
 - CI independiente del stack: valida el titulo del PR (y cada commit en los PR hacia
   `main`), el origen de los PR hacia `main` y la ausencia de atribucion de IA
 - Plantillas de PR e issues, CODEOWNERS, `.gitattributes`, `.editorconfig` minimo y

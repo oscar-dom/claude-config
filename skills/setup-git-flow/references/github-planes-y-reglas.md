@@ -31,8 +31,8 @@ los planes, y en un privado Free son lo único que GitHub impone:
 |---|---|---|
 | `allow_squash_merge` / `allow_merge_commit` | `true` | los dos métodos de la política |
 | `allow_rebase_merge` | `false` | ningún botón fuera de la política |
-| `squash_merge_commit_title` / `_message` | `PR_TITLE` / `PR_BODY` | el commit de squash es el título del PR, no el del primer commit |
-| `merge_commit_title` / `_message` | `PR_TITLE` / `PR_BODY` | las releases quedan como `chore: release vX.Y.Z`, no `Merge pull request #N` |
+| `squash_merge_commit_title` / `_message` | `PR_TITLE` / `BLANK` | el commit de squash es el título del PR, no el del primer commit, y sin el relleno de la plantilla |
+| `merge_commit_title` / `_message` | `PR_TITLE` / `BLANK` | las releases quedan como `chore: release vX.Y.Z`, no `Merge pull request #N` |
 | `delete_branch_on_merge` | `true` | la rama remota se borra al fusionar |
 | `default_branch` | `develop` | los PR apuntan a `develop` sin `--base` |
 
@@ -50,9 +50,23 @@ un hotfix a `develop` se corta una rama `chore/sync-*` desde `main`.
 - `tags.json`: las etiquetas `v*` no se pueden borrar ni mover. Sin bypass: una versión
   publicada es inmutable; si está mal, se publica otra.
 
-Los rulesets de rama usan `actor_id: 5` (administrador) con `bypass_mode: pull_request`.
-`fusionar-pr.sh` **no** usa `--admin`: si un ruleset exige aprobaciones, el PR espera a
-la revisión.
+El check obligatorio lleva `"integration_id": 15368`, que es la app de GitHub Actions.
+Sin él vale cualquier estado con el nombre `Commit messages`, y cualquiera con
+permiso de escritura podría publicar uno verde por la API sin que el CI se ejecute.
+Si el proyecto añade un check obligatorio de otra app (no de Actions), ese lleva el
+`integration_id` de su app, o ninguno.
+
+Los cuerpos vacíos (`BLANK`) son a propósito: la descripción del PR sigue la plantilla
+(casillas, comentarios HTML, `Closes #`) y en el commit sería relleno. El contexto
+sigue en el PR, enlazado por el `(#N)` que GitHub añade al título del squash. Por eso
+un cambio incompatible se marca con `!` en el título del PR: un pie
+`BREAKING CHANGE:` en un commit de la rama de trabajo desaparece con el squash.
+
+Los rulesets de rama usan `actor_id: 5` (administrador) con `bypass_mode: pull_request`:
+nadie empuja directamente a `main` ni a `develop`, pero un administrador **sí** puede
+fusionar un PR saltándose las reglas (GitHub le muestra la casilla "bypass rules"). Es
+la vía de escape para un CI roto, y `CONTRIBUTING.md` lo dice. `fusionar-pr.sh`
+**no** usa `--admin`: si un ruleset exige aprobaciones, el PR espera a la revisión.
 
 `main` no lleva `required_linear_history`: prohíbe los merge commits, que es justo el
 método de las releases.

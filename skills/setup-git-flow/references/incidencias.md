@@ -18,13 +18,18 @@
   `Commit messages` siempre reporta.
 
 - **`Commit messages` falla en `Validate PR title`** → el título no es un Conventional
-  Commit, empieza en mayúscula, acaba en punto o pasa de 72 caracteres. Se arregla
-  editando el título (`gh pr edit <n> --title "..."`): el evento `edited` vuelve a
-  lanzar el CI.
+  Commit, empieza con una palabra en mayúscula de frase (`Add`; las siglas como `API`
+  sí valen), acaba en punto o pasa de 100 caracteres. Los títulos `Revert "…"` del
+  botón de GitHub se aceptan tal cual. Se arregla editando el título
+  (`gh pr edit <n> --title "..."`): el evento `edited` vuelve a lanzar el CI.
 
 - **`Commit messages` falla en `Check source branch`** → un PR hacia `main` desde una
   rama que no es `develop`, `hotfix/*` ni `release/*`. Cambia la base del PR a
   `develop` (`gh pr edit <n> --base develop`).
+
+- **PR atascado esperando `Commit messages` aunque el CI está en verde** → el check
+  lo publicó algo que no es GitHub Actions, o el ruleset lleva un `integration_id`
+  distinto de `15368`. Los rulesets solo aceptan el check si viene de Actions.
 
 - **Un PR de Dependabot falla el CI** → revisa que `.github/dependabot.yml` conserva
   `commit-message.prefix: ci`. Sin él, Dependabot titula "Bump …" y no pasa la
