@@ -1,0 +1,19 @@
+# Keeps the GitHub Actions used by the workflows up to date. The actions are
+# pinned to a commit SHA; Dependabot bumps the SHA and the version comment.
+#
+# Only the `github-actions` ecosystem: it exists in every repository whatever
+# its stack. Add your package ecosystem here once the project has one.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    # One pull request for all action updates instead of one per action.
+    groups:
+      actions:
+        patterns: ["*"]
+    # "ci: bump ..." passes the Conventional Commits check; Dependabot's
+    # default "Bump ..." would fail it.
+    commit-message:
+      prefix: ci

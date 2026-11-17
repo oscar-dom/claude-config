@@ -2,8 +2,13 @@
 # Fusiona un PR SOLO si su CI ha terminado en verde.
 #
 # Uso:   bash ~/.claude/skills/setup-git-flow/scripts/fusionar-pr.sh <numero> <squash|merge>
-#          squash -> feature hacia develop (borra la rama)
-#          merge  -> develop hacia main (merge commit)
+#          squash -> rama de trabajo hacia develop (borra la rama)
+#          merge  -> develop, hotfix/* o release/* hacia main, o una rama
+#                    chore/sync-* hacia develop tras un hotfix (merge commit);
+#                    la rama se borra, salvo develop
+#
+# No usa --admin: fusiona respetando las reglas del repo. Si un ruleset exige
+# aprobaciones que el PR no tiene, NO fusiona y lo dice, en vez de saltarselas.
 #
 # Salida: 0 fusionado, 1 no fusionado (CI rojo, sin checks, o error).
 #
@@ -55,10 +60,24 @@ fi
 echo "Checks del PR #$PR:"
 gh pr checks "$PR" --json name,bucket --jq '.[] | "  \(.bucket)\t\(.name)"'
 
+CABEZA=$(gh pr view "$PR" --json headRefName --jq .headRefName 2>/dev/null)
+# El mensaje del commit lo ponen los ajustes del repo (titulo y descripcion del
+# PR), asi que aqui no se pasa --subject ni --body.
 if [ "$MODO" = "squash" ]; then
-  gh pr merge "$PR" --squash --admin --delete-branch || { echo "NO FUSIONADO: fallo gh pr merge"; exit 1; }
+  ARGS=(--squash --delete-branch)
 else
-  gh pr merge "$PR" --merge --admin || { echo "NO FUSIONADO: fallo gh pr merge"; exit 1; }
+  ARGS=(--merge)
+  # Se borra toda rama de trabajo (hotfix/*, release/*, chore/sync-*), nunca develop.
+  [ "$CABEZA" = "develop" ] || ARGS+=(--delete-branch)
+fi
+if ! SALIDA=$(gh pr merge "$PR" "${ARGS[@]}" 2>&1); then
+  echo "NO FUSIONADO: GitHub rechazo la fusion."
+  printf '%s\n' "$SALIDA" | sed 's/^/  /'
+  if printf '%s' "$SALIDA" | grep -qiE 'review|approv'; then
+    echo "El PR necesita las aprobaciones que exige el ruleset. Pide la revision;"
+    echo "no la saltes con --admin."
+  fi
+  exit 1
 fi
 
 ESTADO=$(gh pr view "$PR" --json state --jq .state 2>/dev/null)
