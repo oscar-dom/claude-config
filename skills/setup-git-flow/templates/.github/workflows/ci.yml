@@ -36,14 +36,21 @@ jobs:
       PR_TITLE: ${{ github.event.pull_request.title }}
       PR_BODY: ${{ github.event.pull_request.body }}
       # Conventional Commits, as documented in CONTRIBUTING.md:
-      # <type>[(scope)][!]: <description>, lowercase start, no trailing period.
-      CC_PATTERN: '^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?!?: [^A-Z[:space:]](.*[^.[:space:]])?$'
-      CC_MAX_LENGTH: 72
+      # <type>[(scope)][!]: <description>, no trailing period. The description
+      # must not start like a sentence ("Add ..."), but may start with an
+      # acronym or a name in capitals ("README", "API", "CI").
+      CC_PATTERN: '^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?!?: ([^A-Z[:space:]]|[A-Z][A-Z0-9])(.*[^.[:space:]])?$'
+      # Same limit as commitlint's default: long enough for Dependabot titles
+      # such as "ci: bump <owner>/<action>/<path> from X to Y in the actions group".
+      CC_MAX_LENGTH: 100
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # The steps below only read local history: do not leave the token in
+          # .git/config for the rest of the job.
+          persist-credentials: false
 
       # Only develop, hotfix/* and release/* may be merged into main. A feature
       # branch merged straight into main skips the integration branch.
@@ -63,9 +70,16 @@ jobs:
       # merges into develop and merge commits into main both use it.
       - name: Validate PR title
         run: |
+          # GitHub's "Revert" button titles the PR 'Revert "<original title>"'.
+          # The original title was already validated, so the revert is accepted.
+          case "$PR_TITLE" in
+            'Revert "'*'"')
+              echo "PR title OK (revert created by GitHub): $PR_TITLE"
+              exit 0 ;;
+          esac
           if ! printf '%s' "$PR_TITLE" | grep -qE "$CC_PATTERN"; then
             echo "::error::PR title is not a Conventional Commit: $PR_TITLE"
-            echo "Expected: <type>[(scope)]: <description> — lowercase start, no trailing period."
+            echo "Expected: <type>[(scope)]: <description> — no capitalized first word, no trailing period."
             echo "Types: build chore ci docs feat fix perf refactor revert style test"
             exit 1
           fi

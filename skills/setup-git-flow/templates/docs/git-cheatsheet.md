@@ -55,16 +55,18 @@ PROTECTION_STATUS
 | `develop`, `hotfix/*`, `release/*` → `main` | `gh pr merge --merge` |
 | `chore/sync-*` (cut from `main`) → `develop`, after a hotfix | `gh pr merge --merge --delete-branch` |
 
-Both methods use the **PR title** as the commit message (repository setting), so the
-title is what has to be right. Rebase merging is disabled. Merged branches are deleted
+Both methods use the **PR title** as the commit message, with an empty body
+(repository setting), so the title is what has to be right and the *why* goes in the
+PR description. Rebase merging is disabled. Merged branches are deleted
 on GitHub automatically; delete your local copy yourself (step 5 above).
 
 ---
 
 ## Writing the PR title (and commits)
 
-`<type>[(scope)][!]: <description>` — imperative, lowercase start, no trailing
-period, 72 characters max. Types are listed in `CONTRIBUTING.md`.
+`<type>[(scope)][!]: <description>` — imperative, first word not capitalized
+(acronyms like `API` or `README` are fine), no trailing period, 100 characters max.
+Types are listed in `CONTRIBUTING.md`.
 
 | ❌ Bad                     | ✅ Good                                      |
 |----------------------------|----------------------------------------------|
@@ -78,7 +80,9 @@ Inside a working branch, commit messages are free-form: the branch is squashed a
 the PR title survives. On `hotfix/*` branches every commit must follow the convention,
 because it lands on `main` unchanged.
 
-A commit with a body, for when the change needs context:
+A commit with a body, for when the change needs context. The body only survives on
+`hotfix/*` and `release/*` branches, which reach `main` as they are; on a working
+branch, write the context in the PR description instead:
 
 ```
 fix: prevent race condition when closing transactions
@@ -90,8 +94,8 @@ now taken before processing.
 Closes #42
 ```
 
-Breaking change: `feat!: switch API responses to JSON:API`, or a
-`BREAKING CHANGE: <what changed>` footer.
+Breaking change: `feat!: switch API responses to JSON:API`, with the `!` in the PR
+title (a `BREAKING CHANGE:` footer in a working-branch commit is lost in the squash).
 
 ---
 

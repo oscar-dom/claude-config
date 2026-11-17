@@ -57,21 +57,25 @@ llamar() {
 #    incluidos, porque son del repositorio y no de los rulesets. En un privado
 #    Free son lo unico que GitHub impone de verdad.
 #    - Solo squash y merge commit; rebase merge desactivado.
-#    - El commit de squash y el merge commit toman el titulo y la descripcion
-#      del PR: el titulo convencional que valida el CI es el que queda en el
-#      historial, no el primer commit de la rama ni "Merge pull request #N".
+#    - El commit de squash y el merge commit toman el titulo del PR: el titulo
+#      convencional que valida el CI es el que queda en el historial, no el
+#      primer commit de la rama ni "Merge pull request #N".
+#    - El cuerpo va vacio (BLANK). La descripcion del PR sigue la plantilla
+#      (casillas, comentarios, "Closes #") y meterla en el commit llenaria el
+#      historial de relleno. El contexto sigue en el PR, enlazado por el (#N)
+#      que GitHub anade al titulo del squash.
 #    - Las ramas se borran solas al fusionar. GitHub nunca borra la rama por
 #      defecto (develop) ni una rama protegida.
-llamar "ajustes de fusion (squash + merge commit, titulo del PR, borrar ramas)" \
+llamar "ajustes de fusion (squash + merge commit, titulo del PR sin cuerpo, borrar ramas)" \
   -X PATCH "repos/$REPO" --silent \
   -F allow_squash_merge=true \
   -F allow_merge_commit=true \
   -F allow_rebase_merge=false \
   -F delete_branch_on_merge=true \
   -f squash_merge_commit_title=PR_TITLE \
-  -f squash_merge_commit_message=PR_BODY \
+  -f squash_merge_commit_message=BLANK \
   -f merge_commit_title=PR_TITLE \
-  -f merge_commit_message=PR_BODY
+  -f merge_commit_message=BLANK
 
 # 2. develop como rama por defecto: los PR apuntan ahi sin --base, y nadie abre
 #    por error un PR contra main.
