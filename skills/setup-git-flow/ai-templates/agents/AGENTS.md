@@ -47,9 +47,21 @@ not exist on this machine, use "Scripts not installed" below.
 **Publish a version** ("release", "publish", "move it to main"):
 
 1. `bash ~/.claude/skills/setup-git-flow/scripts/release.sh --suggest` (read-only).
-2. Present the changes and the suggested version; ask once, the version included.
+2. Present the changes and the suggested version; ask once, the version included. If
+   it lists Dependabot updates, put them in the same question ("apply the pending
+   CI tool updates first?"); with a yes, apply them (recipe below) and run
+   `--suggest` again before releasing.
 3. `bash ~/.claude/skills/setup-git-flow/scripts/release.sh vX.Y.Z` — release PR, CI,
    merge commit into `main`, tag and GitHub release.
+
+**Apply pending updates** ("apply the updates", or from the release recipe):
+
+1. `gh pr list --author app/dependabot --state open` and, for each one,
+   `gh pr checks <n>`. Say in plain words what they update (the tools the CI uses,
+   or a security fix) and whether their checks are green. Ask once for all.
+2. For each one: `bash ~/.claude/skills/setup-git-flow/scripts/merge-pr.sh <n> squash`.
+   It only merges when the CI is green; a failed one stays open: explain it.
+3. `git checkout develop` and `git pull --prune`.
 
 **Urgent fix of what is released** ("production is broken", "hotfix"):
 

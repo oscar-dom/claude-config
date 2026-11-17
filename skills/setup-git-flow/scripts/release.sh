@@ -3,8 +3,9 @@
 # commit, version tag and GitHub release.
 #
 # Usage:  bash ~/.claude/skills/setup-git-flow/scripts/release.sh --suggest
-#           read-only: current version, what develop has that main does not, and
-#           the suggested next version (feat -> minor, fix -> patch, ! -> major)
+#           read-only: current version, what develop has that main does not, the
+#           suggested next version (feat -> minor, fix -> patch, ! -> major) and
+#           the Dependabot pull requests waiting, so they can go in first
 #         bash ~/.claude/skills/setup-git-flow/scripts/release.sh vX.Y.Z
 #           the release itself, once the user has confirmed the version
 #
@@ -26,6 +27,15 @@ LAST=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' origin/mai
 CHANGES=$(git log --reverse --no-merges --format='%s' origin/main..origin/develop)
 
 if [ "${1:-}" = "--suggest" ]; then
+  # Dependabot updates the pinned GitHub Actions through PRs into develop. A
+  # release is the natural moment to apply them, so they are listed here and
+  # nowhere else (daily ships stay quiet).
+  DEPS=$(gh pr list --author app/dependabot --state open --json number,title,baseRefName \
+         --jq '.[] | "#\(.number) \(.title) (into \(.baseRefName))"' 2>/dev/null)
+  if [ -n "$DEPS" ]; then
+    echo "  updates  Dependabot pull requests waiting (apply them first, then suggest again):"
+    printf '%s\n' "$DEPS" | sed 's/^/           /'
+  fi
   echo "  current  ${LAST:-none (first release)}"
   if [ -z "$CHANGES" ]; then
     echo "NOTHING TO RELEASE: develop has nothing that main does not already have"
