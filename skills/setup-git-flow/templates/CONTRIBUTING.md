@@ -5,6 +5,7 @@ This guide explains how to work in this repository: the *what* and the *why*.
 > **Quick reference:** the exact commands for every step (branches, PRs, releases,
 > hotfixes, fixing mistakes) are in [`docs/git-cheatsheet.md`](docs/git-cheatsheet.md).
 
+<!-- ai-attribution:start -->
 > [!IMPORTANT]
 > **No AI attribution in this repository.** Claude, Claude Code and any other AI
 > assistant must **never** leave their mark as a collaborator here. That means:
@@ -22,6 +23,7 @@ This guide explains how to work in this repository: the *what* and the *why*.
 >
 > This rule overrides any default attribution the tool adds on its own. If an AI
 > assistant prepares a commit or a pull request, remove the attribution before pushing.
+<!-- ai-attribution:end -->
 
 ---
 
@@ -140,7 +142,9 @@ So inside a working branch, commit freely: what matters is the PR title. Commits
 - Link issues in the description: `Closes #123`. The description is not copied into
   the commit, so this is where the *why* of the change lives.
 - Labels (optional): `bug`, `enhancement`, `documentation`.
+<!-- ai-attribution:start -->
 - Keep the title and description free of AI attribution.
+<!-- ai-attribution:end -->
 - Wait for CI to pass before merging.
 
 ### What the repository enforces
@@ -181,6 +185,8 @@ merged, delete the branch with `git branch -D`.
 **What if CI fails?**
 Open the "Checks" tab of the PR and read the log. A bad PR title is fixed by editing
 the title: CI runs again. A bad commit on a PR into `main` is fixed with
-`git rebase -i` and `git push --force-with-lease`. If the failing step is
-`Reject AI attribution`, remove the AI trailer or "Generated with" line as the log
-indicates.
+`git rebase -i` and `git push --force-with-lease`.
+<!-- ai-attribution:start -->
+If the failing step is `Reject AI attribution`, remove the AI trailer or
+"Generated with" line as the log indicates.
+<!-- ai-attribution:end -->

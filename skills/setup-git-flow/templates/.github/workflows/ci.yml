@@ -112,6 +112,7 @@ jobs:
           fi
           echo "All commits follow Conventional Commits."
 
+      # ai-attribution:start
       # AI tools must not leave their mark as collaborators (see CONTRIBUTING.md).
       # Checks every commit in the PR (message, author and committer) and the PR
       # title and description, whatever the target branch.
@@ -155,3 +156,4 @@ jobs:
             exit 1
           fi
           echo "No AI attribution found."
+      # ai-attribution:end

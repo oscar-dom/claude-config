@@ -102,32 +102,37 @@ Two jobs, because they catch different things:
 
 ### `setup-git-flow`
 
-Monta una configuracion completa de Git Flow lite en un proyecto nuevo, sin asumir
-ningun stack. La skill esta escrita en espanol; sus instrucciones y el resumen final van
-en espanol, pero todo lo que crea en el repositorio (plantillas, documentacion,
-commits y PR) va en ingles.
+Sets up a complete Git Flow lite configuration in a new project, without assuming any
+stack. The skill, its scripts and everything it creates in the repository (templates,
+documentation, commits and PRs) are in English; Claude talks to you in your language.
 
-- Ramas `main` + `develop` (rama por defecto) con rulesets cuyo check obligatorio solo
-  acepta GitHub Actions, y etiquetas `v*` inmutables
-- Ajustes de fusion: squash hacia `develop`, merge commit hacia `main`, el titulo del PR
-  como mensaje de commit (sin cuerpo), sin rebase, ramas borradas al fusionar
-- Si el repo ya existe con `master`, pregunta si renombrarla a `main` antes de nada
-- CI independiente del stack: valida el titulo del PR (y cada commit en los PR hacia
-  `main`), el origen de los PR hacia `main` y la ausencia de atribucion de IA
-- Plantillas de PR e issues, CODEOWNERS, `.gitattributes`, `.editorconfig` minimo y
-  Dependabot solo para las GitHub Actions
-- `CONTRIBUTING.md` y `docs/git-cheatsheet.md` con releases y hotfixes
-- Secret scanning y Dependabot donde el plan lo permite
+- `main` + `develop` (default branch) with rulesets whose required check only accepts
+  GitHub Actions, and immutable `v*` tags
+- Merge settings: squash into `develop`, merge commit into `main`, the PR title as the
+  commit message (no body), no rebase, branches deleted on merge
+- If the repository already exists with `master`, asks whether to rename it to `main`
+  first
+- Stack-agnostic CI: validates the PR title (and every commit on PRs into `main`) and
+  the source of PRs into `main`
+- PR and issue templates, CODEOWNERS, `.gitattributes`, a minimal `.editorconfig` and
+  Dependabot for GitHub Actions only
+- `CONTRIBUTING.md` and `docs/git-cheatsheet.md` with releases and hotfixes
+- Secret scanning and Dependabot where the plan allows them
 
-Tres cosas que hace siempre, en cada ejecucion:
+What it always does, on every run:
 
-- **Lee el plan de GitHub y pregunta la visibilidad** antes de crear el repositorio,
-  ensenando lo que cada opcion cuesta en ese plan. No hay valor por defecto.
-- **Pregunta quien gestionara el repositorio** (Claude Code, otra IA o solo personas)
-  y solo entonces anade `CLAUDE.md` + `.claude/settings.json` o `AGENTS.md`.
-- **Audita el cierre** antes de dar nada por terminado: que no queden PR abiertos,
-  commits sin empujar, ramas sin upstream ni promociones pendientes. Si queda algo, lo
-  dice y pide permiso para terminarlo en vez de reportar exito.
+- **Reads the GitHub plan and asks for the visibility** before creating the repository,
+  showing what each option costs on that plan. There is no default.
+- **Asks who will manage the repository** (Claude Code, another AI or people only) and
+  only then adds `CLAUDE.md` or `AGENTS.md`.
+- **Asks whether to forbid AI attribution** (`Co-Authored-By:` trailers, "Generated
+  with" lines). With a yes, a CI step blocks PRs that carry it and, with Claude Code,
+  a project `.claude/settings.json` turns it off at the source. With a no, nothing
+  about it is added.
+- **Audits the close** before declaring anything done: no open PRs, unpushed commits,
+  branches without upstream or pending promotions, and it reads back from GitHub the
+  merge settings, rulesets and required check it applied. If something is missing, it
+  says so and asks for permission to finish instead of reporting success.
 
-**Disparador:** pedirle a Claude *"monta Git Flow"*, *"replica la configuracion de
-Git"*, o la forma en ingles *"set up Git Flow"*, en cualquier proyecto nuevo.
+**Trigger:** ask Claude to *"set up Git Flow"*, *"configure git for this project"*, or
+the Spanish *"monta Git Flow"*, in any new project.

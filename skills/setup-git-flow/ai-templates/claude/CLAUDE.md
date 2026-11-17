@@ -20,5 +20,7 @@ Rules that always apply:
 - After a merge: `git checkout develop && git pull --prune`, then
   `git branch -D <branch>` (squash merges are not detected by `git branch -d`).
 - Write commits, PRs, issues and docs in English.
+<!-- ai-attribution:start -->
 - No AI attribution anywhere: no `Co-Authored-By:` trailer for an AI and no
   "Generated with" line in commits, PRs or files. CI rejects it.
+<!-- ai-attribution:end -->

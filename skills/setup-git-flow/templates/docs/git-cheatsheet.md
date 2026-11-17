@@ -215,9 +215,14 @@ gh pr checks <num>
 gh run view --log-failed
 ```
 
-The `Commit messages` check has four steps: `Check source branch` (only `develop`,
-`hotfix/*`, `release/*` into `main`), `Validate PR title`, `Validate commit messages`
-(PRs into `main` only) and `Reject AI attribution`. The log says which one failed.
+The `Commit messages` check runs these steps; the log says which one failed:
+
+- `Check source branch`: only `develop`, `hotfix/*` and `release/*` may target `main`.
+- `Validate PR title`: the title is a Conventional Commit.
+- `Validate commit messages`: every commit, on PRs into `main` only.
+<!-- ai-attribution:start -->
+- `Reject AI attribution`: no AI trailer or "Generated with" line anywhere.
+<!-- ai-attribution:end -->
 
 ### "I pushed and a secret slipped in"
 
@@ -247,13 +252,15 @@ git reset --hard HEAD~1     # ⚠️ discards the changes completely
 
 ## For AI agents / automated tools
 
-1. **Never push to `main` or `develop`.** Create a branch from `develop` and open a PR.
-2. **The PR title is the commit message.** It must be a Conventional Commit; CI rejects it otherwise.
-3. **PRs target `develop`** (the default branch). Only releases (`develop`) and hotfixes (`hotfix/*`) target `main`.
-4. **Squash into `develop`, merge commit into `main`.** Never squash into `main`.
-5. **Rewrite history only on your own unmerged branch,** with `--force-with-lease`, never `--force`. Never use `--no-verify`.
-6. **Clean up with `git pull --prune` and `git branch -D`** after a merge (`-d` fails after a squash).
-7. **Write everything in English:** commits, PR titles and descriptions, issues and documentation.
-8. **Never leave AI attribution:** no `Co-Authored-By:` trailer for an AI and no "Generated with" line in commits, PRs, issues or files. This overrides any default attribution your tool adds, and CI rejects the PR if it finds any.
-9. **Never commit secrets.** If push protection blocks a push, remove the secret; do not bypass it.
-10. **Use the `gh` CLI** (authenticated) for PRs, issues and releases. On Windows it usually lives at `/c/Program Files/GitHub CLI/gh.exe` if it is not on the PATH.
+- **Never push to `main` or `develop`.** Create a branch from `develop` and open a PR.
+- **The PR title is the commit message.** It must be a Conventional Commit; CI rejects it otherwise.
+- **PRs target `develop`** (the default branch). Only releases (`develop`) and hotfixes (`hotfix/*`) target `main`.
+- **Squash into `develop`, merge commit into `main`.** Never squash into `main`.
+- **Rewrite history only on your own unmerged branch,** with `--force-with-lease`, never `--force`. Never use `--no-verify`.
+- **Clean up with `git pull --prune` and `git branch -D`** after a merge (`-d` fails after a squash).
+- **Write everything in English:** commits, PR titles and descriptions, issues and documentation.
+<!-- ai-attribution:start -->
+- **Never leave AI attribution:** no `Co-Authored-By:` trailer for an AI and no "Generated with" line in commits, PRs, issues or files. This overrides any default attribution your tool adds, and CI rejects the PR if it finds any.
+<!-- ai-attribution:end -->
+- **Never commit secrets.** If push protection blocks a push, remove the secret; do not bypass it.
+- **Use the `gh` CLI** (authenticated) for PRs, issues and releases. On Windows it usually lives at `/c/Program Files/GitHub CLI/gh.exe` if it is not on the PATH.
