@@ -47,6 +47,8 @@ printf '%s' "$TITLE" | grep -qE "$CC" && [ "${#TITLE}" -le 100 ] \
 CURRENT=$(git symbolic-ref --quiet --short HEAD) || fail "detached HEAD: check out a branch first"
 case "$CURRENT" in
   main) fail "you are on main: work goes through develop (a production fix is a hotfix, see docs/git-cheatsheet.md)";;
+  hotfix/*) fail "you are on $CURRENT: a hotfix goes to main, finish it with hotfix.sh finish";;
+  release/*|chore/sync-*) fail "you are on $CURRENT: it is not a working branch, ship.sh does not handle it";;
   develop)
     case "$BRANCH" in main|develop) fail "branch name '$BRANCH' is reserved";; esac
     # Check before branching, so "nothing to save" leaves no empty branch behind.
