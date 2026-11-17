@@ -134,8 +134,10 @@ Detail loaded only when needed:
 
    With an AI, the recipes let it run the whole daily flow for a user who may know no
    git: it inspects the changes, proposes one plan in plain language, asks once and
-   then ships it with `ship.sh` (branch, commit, PR, CI, merge, cleanup) or releases
-   it with `release.sh` (release PR, CI, merge commit, tag, GitHub release). Tell the
+   then ships it with `ship.sh` (branch, commit, PR, CI, merge, cleanup), releases it
+   with `release.sh` (release PR, CI, merge commit, tag, GitHub release) or fixes
+   production with `hotfix.sh` (branch from `main`, PR, CI, patch tag, release, and
+   the fix back into `develop`). Tell the
    user, in the summary, that this needs the skill installed and the permission rule
    of check 6 on each machine they work from.
 
@@ -176,7 +178,7 @@ Detail loaded only when needed:
    - If the rule is missing, **do not add it yourself**: tell the user and ask.
    - **Never grant `gh api -X PATCH repos/<owner>/*`** or similar: it would allow any
      PATCH on any repository, including making it public.
-   The same rule covers `ship.sh` and `release.sh`, which the AI uses every day in the
+   The same rule covers `ship.sh`, `release.sh` and `hotfix.sh`, which the AI uses every day in the
    repository (question 2): with it, daily work needs one confirmation per operation
    instead of a permission prompt per git command.
 

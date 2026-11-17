@@ -126,8 +126,9 @@ What it always does, on every run:
 - **Asks who will manage the repository** (Claude Code, another AI or people only).
   With an AI it adds `CLAUDE.md` or `AGENTS.md` with daily recipes: the agent looks
   at your changes, proposes one plan in plain language, asks once and ships it with
-  `ship.sh` (branch, commit, PR, CI, merge, cleanup) or releases it with `release.sh`
-  (release PR, CI, merge commit, tag, GitHub release).
+  `ship.sh` (branch, commit, PR, CI, merge, cleanup), releases it with `release.sh`
+  (release PR, CI, merge commit, tag, GitHub release) or fixes production with
+  `hotfix.sh` (patch release from `main`, then the fix back into `develop`).
 - **Only with an AI, asks whether to forbid AI attribution** (`Co-Authored-By:`
   trailers, "Generated with" lines). With a yes, a CI step blocks PRs that carry it
   and, with Claude Code, a project `.claude/settings.json` turns it off at the source.

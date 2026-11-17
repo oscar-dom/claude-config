@@ -147,6 +147,9 @@ publish a new version instead of moving the tag.
 
 ## Hotfixes
 
+> With the `setup-git-flow` skill installed, `hotfix.sh start` / `hotfix.sh finish`
+> do all of this in two calls (see `CLAUDE.md` / `AGENTS.md`).
+
 For an urgent fix to what is on `main`:
 
 ```bash

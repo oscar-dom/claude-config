@@ -51,8 +51,20 @@ not exist on this machine, use "Scripts not installed" below.
 3. `bash ~/.claude/skills/setup-git-flow/scripts/release.sh vX.Y.Z` — release PR, CI,
    merge commit into `main`, tag and GitHub release.
 
-**Anything else** (urgent production fix, undoing a commit, a lost branch, conflicts):
-read only the matching section of `docs/git-cheatsheet.md`.
+**Urgent fix of what is released** ("production is broken", "hotfix"):
+
+1. Before touching any code:
+   `bash ~/.claude/skills/setup-git-flow/scripts/hotfix.sh start <short-name>`
+   (it refuses with uncommitted work: save that first with `ship.sh --commit-only`).
+2. Write the fix on that branch, then present one plan: the fix, the title (`fix: …`)
+   and the patch version it will publish. Ask once.
+3. `bash ~/.claude/skills/setup-git-flow/scripts/hotfix.sh finish "<title>" <paths...>`
+   — PR into `main`, CI, merge, patch tag and release, then the fix back into
+   `develop`. If its last line says the sync into `develop` failed, the release
+   stands: explain and resolve only the sync.
+
+**Anything else** (undoing a commit, a lost branch, conflicts): read only the
+matching section of `docs/git-cheatsheet.md`.
 
 **Scripts not installed** (another machine): same plan, by hand: branch from
 `develop`, commit, push, `gh pr create --base develop`, then
