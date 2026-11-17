@@ -1,225 +1,253 @@
 ---
 name: setup-git-flow
-description: Monta una configuración completa de Git Flow lite en un proyecto nuevo. Úsala cuando el usuario pida "configura Git", "monta Git Flow", "replica la configuración de Git", "inicializa el repo con Git Flow", "protege las ramas", o cuando empiece un proyecto que necesite estrategia de ramas + plantillas de PR + CI + reglas de protección. También responde a las formas en inglés ("set up Git Flow", "configure git for this project", "set up branch protection"). Crea las ramas main/develop con rulesets, ajustes de fusión, plantillas de PR e issues, CODEOWNERS, CI en GitHub Actions, CONTRIBUTING.md y una chuleta de git siguiendo Conventional Commits, adaptándose al plan de GitHub y a si el repo lo gestionará una IA.
+description: Sets up a complete Git Flow lite configuration in a new project. Use it when the user asks to "set up Git Flow", "configure git for this project", "set up branch protection", "initialize the repo with Git Flow", "replicate the Git setup", or starts a project that needs a branching strategy plus PR templates, CI and protection rules. Also answers to the Spanish forms ("configura Git", "monta Git Flow", "protege las ramas", "inicializa el repo con Git Flow"). Creates main/develop with rulesets, merge settings, PR and issue templates, CODEOWNERS, GitHub Actions CI, CONTRIBUTING.md and a git cheatsheet following Conventional Commits, adapting to the user's GitHub plan, to whether an AI will manage the repository, and to an optional "no AI attribution" rule.
 ---
 
 # Skill: setup-git-flow
 
-Monta la base de un repositorio profesional con Git Flow lite: `main` + `develop`
-protegidas, squash hacia `develop` y merge commit hacia `main`, el título del PR como
-mensaje de commit, CI que valida la convención, plantillas, guía de contribución y
-chuleta. Se adapta sola al plan de GitHub del usuario y, si el repositorio lo va a
-gestionar una IA, le deja preparadas sus instrucciones.
+Sets up the base of a professional repository with Git Flow lite: protected `main` +
+`develop`, squash into `develop` and merge commit into `main`, the PR title as the
+commit message, CI that validates the convention, templates, a contribution guide and
+a cheatsheet. It adapts to the user's GitHub plan and, if an AI will manage the
+repository, leaves its instructions ready.
 
-> Esta skill es personal y está escrita en español a propósito. Lo que nunca se traduce
-> son los **identificadores**: nombres de ramas, rutas de ficheros, comandos, y muy en
-> particular el `name:` del job del CI (`Commit messages`), que es el `context` de los
-> rulesets. Traducirlo bloquea todos los PR para siempre.
+> **Never translate identifiers**: branch names, file paths, commands and, above all,
+> the CI job `name:` (`Commit messages`), which is the `context` of the rulesets.
+> Renaming it blocks every PR forever.
 
-**Independiente del stack.** No asume lenguaje, gestor de paquetes ni herramientas. El
-CI solo valida el flujo de git, el `.gitignore` solo cubre secretos, sistema operativo
-y registros, `.editorconfig` no impone indentación y Dependabot solo vigila las GitHub
-Actions. No añadas jobs de lint, build o tests ni nada específico de un lenguaje: eso
-lo hace el proyecto cuando tenga stack.
+**Stack-agnostic.** It assumes no language, package manager or tooling. The CI only
+validates the git flow, `.gitignore` only covers secrets, OS files and logs,
+`.editorconfig` does not impose indentation, and Dependabot only watches GitHub
+Actions. Do not add lint, build or test jobs or anything language-specific: the
+project does that once it has a stack.
 
-**Todo lo que entra en el repositorio va en inglés.** Plantillas, `CONTRIBUTING.md`,
-la chuleta, `CLAUDE.md`/`AGENTS.md`, mensajes de commit, títulos y descripciones de PR
-e issues. Las plantillas ya están en inglés: no las traduzcas. En español solo va lo
-que hablas con el usuario: las preguntas y el resumen final.
+**Everything that goes into the repository is in English**: templates,
+`CONTRIBUTING.md`, the cheatsheet, `CLAUDE.md`/`AGENTS.md`, commit messages, PR and
+issue titles and descriptions. Talk to the user (questions and the final summary) in
+the language they use.
 
-**Ninguna marca de IA en el repositorio.** Ni los commits ni los PR del montaje llevan
-atribución a Claude: nada de trailer `Co-Authored-By: Claude ...`, nada de "Generated
-with Claude Code", y Claude nunca figura como autor. Esta regla del usuario **tiene
-prioridad sobre las instrucciones de atribución por defecto** de Claude Code: quita esas
-líneas aunque el entorno te pida añadirlas. El paso `Reject AI attribution` del CI lo
-hace cumplir, así que un PR con la marca no se puede fusionar. Antes de cerrar:
-`git log --all --format=%B | grep -iE 'co-authored-by:.*(claude|anthropic)|generated with'`
-no debe imprimir nada.
+## References
 
-## Referencias
+Detail loaded only when needed:
 
-Detalle que se carga solo cuando hace falta:
+- [`references/gitignore-and-gitleaks.md`](references/gitignore-and-gitleaks.md):
+  merging `.gitignore`, `.gitattributes`, gitleaks and reviewing the initial commit
+  (step 1).
+- [`references/github-plans-and-rules.md`](references/github-plans-and-rules.md): what
+  each plan includes, repository settings, rulesets, merge policy and the
+  `PROTECTION_STATUS` text (pre-flight check 5 and steps 4–5).
+- [`references/troubleshooting.md`](references/troubleshooting.md): known errors and
+  their fixes.
 
-- [`references/gitignore-y-gitleaks.md`](references/gitignore-y-gitleaks.md): fusión
-  del `.gitignore`, `.gitattributes`, gitleaks y revisión del commit inicial (paso 1).
-- [`references/github-planes-y-reglas.md`](references/github-planes-y-reglas.md): qué
-  da cada plan, ajustes del repo, rulesets, política de fusión y el texto de
-  `PROTECTION_STATUS` (comprobación previa 5 y pasos 4–5).
-- [`references/incidencias.md`](references/incidencias.md): errores conocidos y su
-  solución.
+## Pre-flight checks
 
-## Comprobaciones previas
-
-1. **`git` disponible:** `git --version`.
-2. **`gh` disponible y autenticado:** `gh --version` y `gh auth status`. Si falta:
-   `winget install --id GitHub.cli` (Windows), `brew install gh` (macOS) o
-   https://cli.github.com/. Si no está autenticado, que el usuario ejecute
-   `gh auth login` él mismo (es interactivo).
-3. **Este directorio es su propio repositorio, no el de un padre.**
-   `git rev-parse --is-inside-work-tree` es la pregunta equivocada: devuelve `true`
-   también cuando la carpeta cuelga del repo de otro, y entonces el `git add -A`
-   prepararía **el árbol del padre**. Pregunta dónde estás respecto a la raíz:
+1. **`git` available:** `git --version`.
+2. **`gh` available and authenticated:** `gh --version` and `gh auth status`. If
+   missing: `winget install --id GitHub.cli` (Windows), `brew install gh` (macOS) or
+   https://cli.github.com/. If not authenticated, the user runs `gh auth login`
+   themselves (it is interactive).
+3. **This directory is its own repository, not a parent's.**
+   `git rev-parse --is-inside-work-tree` is the wrong question: it also returns `true`
+   when the folder hangs from someone else's repository, and then `git add -A` would
+   stage **the parent's tree**. Ask where you are relative to the root:
 
    ```bash
-   git rev-parse --show-prefix 2>/dev/null     # ruta relativa a la raíz del repo
-   git rev-parse --show-toplevel 2>/dev/null   # la raíz, para decírsela al usuario
+   git rev-parse --show-prefix 2>/dev/null     # path relative to the repository root
+   git rev-parse --show-toplevel 2>/dev/null   # the root, to tell the user
    ```
 
-   No compares `--show-toplevel` con `pwd`: en Windows el mismo directorio tiene dos
-   formas (`C:/...` y `/c/...`).
+   Do not compare `--show-toplevel` with `pwd`: on Windows the same directory has two
+   forms (`C:/...` and `/c/...`).
 
-   | `--show-prefix` | Significa | Qué hacer |
+   | `--show-prefix` | Means | What to do |
    |---|---|---|
-   | sale bien y vacío | el proyecto ya es su propio repo | continuar |
-   | falla | no hay ningún repo | el paso 1 hace `git init -b main` |
-   | **sale bien y no vacío** | está **dentro del repo de otro** | **PARAR y preguntar** |
+   | succeeds, empty | the project is already its own repository | continue |
+   | fails | there is no repository | step 1 runs `git init -b main` |
+   | **succeeds, not empty** | it is **inside someone else's repository** | **STOP and ask** |
 
-   En el tercer caso, para antes de tocar nada, di qué repositorio has encontrado y
-   dónde está su raíz, y deja decidir al usuario.
+   In the third case, stop before touching anything, say which repository you found
+   and where its root is, and let the user decide.
 
-4. **Commits y remoto:** `git rev-parse --verify HEAD` y `git remote -v`. Si falta
-   alguno, el paso 1 se encarga.
+4. **Commits and remote:** `git rev-parse --verify HEAD` and `git remote -v`. If either
+   is missing, step 1 handles it.
 
-   **Si ya hay commits, la rama principal tiene que llamarse `main`.** Todo lo demás
-   (rulesets, CI, plantillas, scripts) asume ese nombre: con `master` el paso 3 falla
-   y los rulesets protegerían una `main` que nadie usa. Comprueba la rama actual y,
-   si hay remoto, la rama por defecto de GitHub:
+   **If there are commits, the main branch must be called `main`.** Everything else
+   (rulesets, CI, templates, scripts) assumes that name: with `master`, step 3 fails
+   and the rulesets would protect a `main` nobody uses. Check the current branch and,
+   with a remote, GitHub's default branch:
 
    ```bash
    git branch --list main master trunk
-   gh repo view --json defaultBranchRef --jq .defaultBranchRef.name   # solo con remoto
+   gh repo view --json defaultBranchRef --jq .defaultBranchRef.name   # only with a remote
    ```
 
-   Si la principal no es `main`, **para y pregunta** si renombrarla. Explica que
-   GitHub reapunta los PR abiertos y redirige las URL antiguas, y que quien tenga un
-   clon tendrá que hacer `git branch -m <antigua> main` (GitHub se lo indica). Con un
-   sí, y nunca sin él:
+   If the main branch is not `main`, **stop and ask** whether to rename it. Explain
+   that GitHub retargets open PRs and redirects old URLs, and that anyone with a clone
+   will have to run `git branch -m <old> main` (GitHub tells them). With a yes, and
+   never without one:
 
    ```bash
-   bash ~/.claude/skills/setup-git-flow/scripts/renombrar-rama-principal.sh <antigua>
+   bash ~/.claude/skills/setup-git-flow/scripts/rename-main-branch.sh <old>
    ```
 
-   Imprime `RENOMBRADA` (sale con `0`) o `NO RENOMBRADA` y el motivo (sale con `1`).
-   Si ya existen las dos ramas, no elijas tú: pregunta cuál se queda. Si el usuario
-   prefiere no renombrar, la skill no se aplica tal cual: díselo y para.
+   It prints `RENAMED` (exit `0`) or `NOT RENAMED` and the reason (exit `1`). If both
+   branches already exist, do not choose: ask which one stays. If the user prefers not
+   to rename, the skill does not apply as is: say so and stop.
 
-5. **Las dos preguntas del montaje, en UNA sola tarjeta de `AskUserQuestion`.** Son
-   las únicas decisiones que el usuario toma en todas las ejecuciones. Pregúntalas antes de
-   crear nada y espera la respuesta. No las deduzcas del proyecto, de un valor por
-   defecto ni de una ejecución anterior.
+5. **The setup questions, asked with `AskUserQuestion`.** Questions 1 and 2 go in ONE
+   card; question 3 only exists when answer 2 is an AI, and goes in a second card right
+   after. They are the only decisions the user makes. Ask them before creating
+   anything and wait for the answers. Do not infer them from the project, a default or
+   a previous run.
 
-   **Antes, lee el plan** para que la pregunta de visibilidad diga las consecuencias
-   reales de esa cuenta, sin que el usuario tenga que explicarlas:
+   **First read the plan**, so the visibility question states the real consequences
+   for that account without the user having to explain them:
 
    ```bash
    gh api user --jq .plan.name
    ```
 
-   **Pregunta 1, visibilidad.** Si el repositorio no existe, con qué visibilidad
-   crearlo; si existe, lee la actual (`gh repo view --json visibility --jq .visibility`),
-   dila y pregunta si mantenerla. En la descripción de cada opción pon solo lo que
-   cambia **para su plan** (tabla en `references/github-planes-y-reglas.md`):
+   **Question 1, visibility.** If the repository does not exist, which visibility to
+   create it with; if it exists, read the current one
+   (`gh repo view --json visibility --jq .visibility`), say it and ask whether to keep
+   it. In each option's description put only what changes **for their plan** (table in
+   `references/github-plans-and-rules.md`):
 
-   - Free: privado = sin protección de ramas por rulesets ni secret scanning;
-     público = todo activo y código visible para cualquiera.
-   - Pro: privado conserva la protección de ramas (sin secret scanning); público =
-     todo activo y código visible.
+   - Free: private = no branch protection through rulesets and no secret scanning;
+     public = everything active and code visible to anyone.
+   - Pro: private keeps branch protection (no secret scanning); public = everything
+     active and code visible.
 
-   No empujes hacia ninguna: las dos son legítimas. **Solo haz público un repositorio
-   con un sí explícito**, diciendo antes que publica **todos los commits que ya hay** y
-   que volver a privado no despublica lo descargado o indexado. Nunca cambies la
-   visibilidad en silencio. "Privado, en plan Free" es una respuesta completa, no un
-   problema: no vuelvas a plantearlo más adelante.
+   Do not push toward either: both are legitimate. **Only make a repository public
+   with an explicit yes**, saying first that it publishes **every commit already
+   there** and that switching back to private does not unpublish what was downloaded
+   or indexed. Never change visibility silently. "Private, on the Free plan" is a
+   complete answer, not a problem: do not bring it up again later.
 
-   **Pregunta 2, quién gestionará el repositorio.**
+   **Question 2, who will manage the repository.**
 
-   | Respuesta | Qué se añade (paso 5) |
+   | Answer | What is added (step 5) |
    |---|---|
-   | Claude Code | `CLAUDE.md` + `.claude/settings.json` (y los ficheros personales de Claude en `.gitignore`, paso 1) |
-   | Otra IA (Codex, Cursor, Copilot…) | `AGENTS.md` |
-   | Solo personas | nada más |
+   | Claude Code | `CLAUDE.md` with the daily git recipes (+ Claude's personal files in `.gitignore`, step 1) |
+   | Another AI (Codex, Cursor, Copilot…) | `AGENTS.md` with the same recipes |
+   | People only | nothing AI-related, and question 3 is **not** asked |
 
-6. **Permisos de Claude Code: una sola regla, global.** Lo que modifica GitHub
-   (fusionar PR, ajustes, rulesets, seguridad) va dentro de `scripts/`, con los
-   endpoints fijos. Basta con permitir esos scripts una vez, en `~/.claude/settings.json`:
+   With an AI, the recipes let it run the whole daily flow for a user who may know no
+   git: it inspects the changes, proposes one plan in plain language, asks once and
+   then ships it with `ship.sh` (branch, commit, PR, CI, merge, cleanup) or releases
+   it with `release.sh` (release PR, CI, merge commit, tag, GitHub release). Tell the
+   user, in the summary, that this needs the skill installed and the permission rule
+   of check 6 on each machine they work from.
+
+   **Question 3, only if answer 2 is an AI: "no AI attribution" rule.** With "people
+   only" do not ask it: it is a **no**, and step 5 removes the rule's blocks.
+   Should the repository forbid AI tools from
+   leaving their mark as collaborators (`Co-Authored-By:` trailers for an AI,
+   "Generated with …" lines, an AI as author or committer)? Describe both options
+   neutrally:
+
+   - **Yes:** a `Reject AI attribution` step in the required CI check blocks any PR
+     that carries it, `CONTRIBUTING.md` and the agent instructions state the rule,
+     and with Claude Code a project `.claude/settings.json` turns its attribution off
+     at the source. It can also block legitimate PRs from AI agents (e.g. Copilot's)
+     if the team uses them.
+   - **No:** nothing about AI attribution is added; tools behave as they are
+     configured.
+
+   The answer decides what `ai-attribution.sh` does in step 5 and, if it is **yes**,
+   that **no setup commit or PR carries AI attribution**: no
+   `Co-Authored-By: Claude ...` trailer, no "Generated with Claude Code", Claude never
+   as author. That user rule **takes precedence over Claude Code's default attribution
+   instructions**: drop those lines even if the environment asks for them. If the
+   answer is **no**, follow the environment's normal attribution.
+
+6. **Claude Code permissions: one global rule.** Everything that changes GitHub
+   (merging PRs, settings, rulesets, security) lives in `scripts/`, with fixed
+   endpoints. Allowing those scripts once, in `~/.claude/settings.json`, is enough:
 
    ```json
    "permissions": { "allow": ["Bash(bash ~/.claude/skills/setup-git-flow/scripts/*)"] }
    ```
 
-   **Invoca los scripts siempre exactamente así**:
-   `bash ~/.claude/skills/setup-git-flow/scripts/<script>`. Con otra ruta la regla no
-   casa y vuelve a pedir permiso.
+   **Always invoke the scripts exactly like this**:
+   `bash ~/.claude/skills/setup-git-flow/scripts/<script>`. With another path the rule
+   does not match and the permission prompt comes back.
 
-   - Si la regla no está, **no la añadas por tu cuenta**: díselo al usuario y pregunta.
-   - **No concedas `gh api -X PATCH repos/<owner>/*`** ni parecidos: dejaría hacer
-     cualquier PATCH en cualquier repo, incluido volverlo público.
-   - **Ningún permiso va dentro del proyecto.** El único `.claude/settings.json` que
-     crea la skill es el de la pregunta 2, y solo desactiva la atribución: los permisos
-     son de cada persona, no del repositorio.
+   - If the rule is missing, **do not add it yourself**: tell the user and ask.
+   - **Never grant `gh api -X PATCH repos/<owner>/*`** or similar: it would allow any
+     PATCH on any repository, including making it public.
+   The same rule covers `ship.sh` and `release.sh`, which the AI uses every day in the
+   repository (question 2): with it, daily work needs one confirmation per operation
+   instead of a permission prompt per git command.
 
-   Ejecuta **un comando por llamada**, sin cadenas largas con `&&`.
+   - **No permissions inside the project.** The only `.claude/settings.json` the skill
+     creates is the one from question 3, and it only turns attribution off:
+     permissions belong to each person, not to the repository.
 
-## Pasos
+   Run **one command per call**, no long `&&` chains.
 
-### 1. Arranque: `main` con un commit inicial limpio y upstream
+## Steps
 
-Todo lo demás asume que `main` existe con upstream. Comprueba qué falta:
+### 1. Bootstrap: `main` with a clean initial commit and upstream
 
-```bash
-git rev-parse --show-prefix 2>/dev/null     # vacío = este directorio es el repo
-git rev-parse --verify HEAD 2>/dev/null     # ¿tiene commits?
-git remote get-url origin 2>/dev/null       # ¿tiene remoto?
-```
-
-**Si no tiene commits:**
+Everything else assumes `main` exists with an upstream. Check what is missing:
 
 ```bash
-git init -b main                        # solo si todavía no es un repo
-git symbolic-ref HEAD refs/heads/main   # si init llamó master a la rama
+git rev-parse --show-prefix 2>/dev/null     # empty = this directory is the repository
+git rev-parse --verify HEAD 2>/dev/null     # any commits?
+git remote get-url origin 2>/dev/null       # any remote?
 ```
 
-Antes del primer `git add -A`, siguiendo `references/gitignore-y-gitleaks.md`:
+**If there are no commits:**
 
-1. `.gitignore`: copiar si no hay, **fusionar si ya hay, nunca sobrescribir**. Si la
-   respuesta 2 fue Claude Code, añadir `.claude/settings.local.json` y `CLAUDE.local.md`.
-2. `.gitattributes` (`templates/.gitattributes`), si el proyecto no tiene uno.
-3. Verificar con `git check-ignore -v` las rutas sensibles reales del proyecto.
+```bash
+git init -b main                        # only if it is not a repository yet
+git symbolic-ref HEAD refs/heads/main   # if init called the branch master
+```
 
-Después:
+Before the first `git add -A`, following `references/gitignore-and-gitleaks.md`:
+
+1. `.gitignore`: copy it if there is none, **merge if there is one, never
+   overwrite**. If answer 2 was Claude Code, add `.claude/settings.local.json` and
+   `CLAUDE.local.md`.
+2. `.gitattributes` (`templates/.gitattributes`), if the project has none.
+3. Verify the project's real sensitive paths with `git check-ignore -v`.
+
+Then:
 
 ```bash
 git add -A
-git status                              # REVÍSALO SIEMPRE: es lo que se va a publicar
+git status                              # ALWAYS REVIEW IT: this is what gets published
 gitleaks git --staged --redact --verbose
 git commit -m "chore: initial commit"
 ```
 
-gitleaks sin instalar es un aviso (se continúa y se dice en el resumen); gitleaks con
-hallazgos es un **alto**: no se commitea.
+gitleaks not installed is a warning (carry on and say so in the summary); gitleaks
+with findings is a **stop**: do not commit.
 
-**Mensajes de commit siempre en inglés**, en minúscula e imperativo, en este paso y en
-todos.
+**Commit messages always in English**, lowercase and imperative, in this step and in
+every other.
 
-**Si no tiene remoto**, créalo con la visibilidad que eligió el usuario y empuja `main`:
+**If there is no remote**, create it with the visibility the user chose and push
+`main`:
 
 ```bash
-# <visibilidad> es --private o --public, de la respuesta 1. Sin valor por defecto a
-# propósito: si todavía no has preguntado, para y pregunta.
-gh repo create <nombre> <visibilidad> --source=. --remote=origin
+# <visibility> is --private or --public, from answer 1. No default on purpose: if
+# you have not asked yet, stop and ask.
+gh repo create <name> <visibility> --source=. --remote=origin
 git push -u origin main
 ```
 
-Si el remoto existe pero `main` no tiene upstream: `git push -u origin main`.
+If the remote exists but `main` has no upstream: `git push -u origin main`.
 
-### 2. Averiguar el repositorio y el usuario
+### 2. Find the repository and the user
 
 ```bash
 gh repo view --json nameWithOwner --jq .nameWithOwner   # OWNER_REPO
-gh api user --jq .login                                 # GH_USERNAME, para CODEOWNERS
+gh api user --jq .login                                 # GH_USERNAME, for CODEOWNERS
 ```
 
-### 3. Crear `develop`
+### 3. Create `develop`
 
 ```bash
 git checkout main
@@ -228,196 +256,219 @@ git checkout -b develop
 git push -u origin develop
 ```
 
-(Solo `git pull` si `main` tiene upstream: sin él falla.)
+(Only `git pull` if `main` has an upstream: without one it fails.)
 
-### 4. Configurar GitHub: ajustes, rama por defecto, seguridad y rulesets
+### 4. Configure GitHub: settings, default branch, security and rulesets
 
-**Va antes de los PR del montaje**, para que el primer squash ya use el título del PR
-como mensaje y el PR de `develop` a `main` ya esté limitado a merge commit:
+**It runs before the setup PRs**, so the first squash already uses the PR title as
+the message and the `develop` → `main` PR is already limited to a merge commit:
 
 ```bash
-bash ~/.claude/skills/setup-git-flow/scripts/configurar-github.sh
+bash ~/.claude/skills/setup-git-flow/scripts/configure-github.sh
 ```
 
-Aplica, en este orden: ajustes de fusión (squash y merge commit con el título del PR
-como mensaje y el cuerpo vacío, sin rebase, ramas borradas al fusionar), `develop` como rama por
-defecto, alertas y parches de Dependabot, secret scanning y push protection, y los
-rulesets `Protect main`, `Protect develop` y `Protect release tags` (los crea, o los
-actualiza si ya existen). Detalle en `references/github-planes-y-reglas.md`.
+It applies, in this order: merge settings (squash and merge commit with the PR title
+as the message and an empty body, no rebase, branches deleted on merge), `develop` as
+the default branch, Dependabot alerts and security fixes, secret scanning and push
+protection, and the rulesets `Protect main`, `Protect develop` and
+`Protect release tags` (created, or updated if they exist). Detail in
+`references/github-plans-and-rules.md`.
 
-Cada línea sale como `OK`, `NO DISPONIBLE` o `FALLO`:
+Each line prints `OK`, `UNAVAILABLE` or `FAILED`:
 
-- **`NO DISPONIBLE` no es un fallo**: es el plan que eligió el usuario. No se rodea, no
-  se vuelve a preguntar y no se ofrece hacer público el repo. Va al resumen como
-  pendiente, con el motivo.
-- **`FALLO`** es un error real (repo inexistente, token sin permisos, JSON rechazado).
-  Sale con `1`: no sigas sin resolverlo.
+- **`UNAVAILABLE` is not a failure**: it is the plan the user chose. Do not work
+  around it, do not ask again and do not offer to make the repository public. It goes
+  to the summary as pending, with its reason.
+- **`FAILED`** is a real error (repository missing, token without scopes, rejected
+  JSON). Exit `1`: do not continue until it is solved.
 
-**Anota si los rulesets quedaron aplicados o no**: decide el texto de
-`PROTECTION_STATUS` en el paso 5.
+**Note whether the rulesets were applied or not**: it decides the
+`PROTECTION_STATUS` text in step 5.
 
-### 5. Copiar las plantillas
+### 5. Copy the templates
 
-Copia `templates/` a la raíz del proyecto, conservando la estructura:
+Copy `templates/` to the project root, keeping the structure:
 
 - `.github/PULL_REQUEST_TEMPLATE.md`
-- `.github/ISSUE_TEMPLATE/bug_report.md`, `feature_request.md` y `config.yml` (este
-  solo desactiva los issues en blanco; no enlaza a Discussions, que en un repo nuevo
-  están desactivadas)
-- `.github/CODEOWNERS`: **sustituye `@OWNER` por `@$GH_USERNAME`**
+- `.github/ISSUE_TEMPLATE/bug_report.md`, `feature_request.md` and `config.yml` (the
+  latter only disables blank issues; it does not link to Discussions, which are off
+  in a new repository)
+- `.github/CODEOWNERS`: **replace `@OWNER` with `@$GH_USERNAME`**
 - `.github/workflows/ci.yml`
 - `.github/dependabot.yml`
 - `CONTRIBUTING.md`
-- `docs/git-cheatsheet.md`: **siempre** en `docs/` (lo enlazan `CONTRIBUTING.md`,
-  `CLAUDE.md` y `AGENTS.md`)
-- `.editorconfig`, y `.gitattributes` si no entró en el commit inicial
-- `.gitignore`: **ya resuelto en el paso 1**; no lo vuelvas a copiar encima
+- `docs/git-cheatsheet.md`: **always** in `docs/` (linked from `CONTRIBUTING.md`,
+  `CLAUDE.md` and `AGENTS.md`)
+- `.editorconfig`, and `.gitattributes` if it did not go into the initial commit
+- `.gitignore`: **already handled in step 1**; do not copy it over again
 
-**Sustituye `PROTECTION_STATUS`** en `CONTRIBUTING.md` y en `docs/git-cheatsheet.md`
-por el texto que corresponda a lo que el paso 4 **aplicó de verdad** (los dos textos
-están en `references/github-planes-y-reglas.md`). No dejes el marcador.
+**Replace `PROTECTION_STATUS`** in `CONTRIBUTING.md` and `docs/git-cheatsheet.md` with
+the text matching what step 4 **really applied** (both texts are in
+`references/github-plans-and-rules.md`). Do not leave the placeholder.
 
-**Según la respuesta 2**, copia además desde `ai-templates/`:
+**According to answer 2**, also copy from `ai-templates/`:
 
-| Respuesta | Ficheros |
+| Answer | Files |
 |---|---|
-| Claude Code | `ai-templates/claude/CLAUDE.md` → `CLAUDE.md`; `ai-templates/claude/.claude/settings.json` → `.claude/settings.json` |
-| Otra IA | `ai-templates/agents/AGENTS.md` → `AGENTS.md` |
-| Solo personas | nada |
+| Claude Code | `ai-templates/claude/CLAUDE.md` → `CLAUDE.md`; with a **yes** to question 3, also `ai-templates/claude/.claude/settings.json` → `.claude/settings.json` |
+| Another AI | `ai-templates/agents/AGENTS.md` → `AGENTS.md` |
+| People only | nothing |
 
-`.claude/settings.json` solo desactiva la atribución de Claude en commits y PR, y así
-la regla de no dejar marca se cumple desde el origen. **Nunca le añadas permisos.**
+`.claude/settings.json` only turns Claude's attribution off in commits and PRs, so the
+rule is met at the source. **Never add permissions to it.**
 
-**Si un fichero ya existe en el proyecto, no lo sobrescribas.** Para `CLAUDE.md` o
-`AGENTS.md` existentes, añade al final la sección `## Git workflow` de la plantilla
-(si no la tiene ya). Para el resto (por ejemplo un `CONTRIBUTING.md` propio), díselo
-al usuario y pregunta si fusionar, conservar el suyo o reemplazarlo. Un
-`.editorconfig` o `.gitattributes` existente se respeta sin preguntar.
+**Apply answer 3** from the project root, once every template is in place:
 
-### 6. Commitear las plantillas vía PR y sincronizar `main`
+```bash
+bash ~/.claude/skills/setup-git-flow/scripts/ai-attribution.sh keep     # answer: yes
+bash ~/.claude/skills/setup-git-flow/scripts/ai-attribution.sh remove   # answer: no, or people only
+```
 
-El contenido del proyecto entró en el commit inicial (paso 1); las plantillas entran
-ahora por PR. Antes, `git status`: algo inesperado sin seguimiento significa que el
-paso 1 quedó a medias.
+The templates wrap everything about the rule between `ai-attribution:start` /
+`ai-attribution:end` markers: `keep` drops only the markers, `remove` drops the whole
+blocks (the CI step, the `CONTRIBUTING.md` section, the agent instruction). Never edit
+those blocks by hand; the audit fails if a marker is left.
 
-Prepara **solo las rutas que copiaste**, nunca `git add -A` ni carpetas enteras:
+**If a file already exists in the project, do not overwrite it.** For an existing
+`CLAUDE.md` or `AGENTS.md`, append the template's `## Git workflow` section at the end
+(if it does not have it yet), then run `ai-attribution.sh`. For the rest (e.g. its own
+`CONTRIBUTING.md`), tell the user and ask whether to merge, keep theirs or replace it.
+An existing `.editorconfig` or `.gitattributes` is respected without asking.
+
+### 6. Commit the templates through a PR and sync `main`
+
+The project content went into the initial commit (step 1); the templates go in now
+through a PR. First `git status`: anything unexpected and untracked means step 1 was
+left half done.
+
+Stage **only the paths you copied**, never `git add -A` or whole folders:
 
 ```bash
 git checkout -b chore/git-flow-setup
 git add .github CONTRIBUTING.md docs/git-cheatsheet.md .editorconfig
-# más .gitattributes, CLAUDE.md, .claude/settings.json o AGENTS.md si los copiaste
+# plus .gitattributes, CLAUDE.md, .claude/settings.json or AGENTS.md if you copied them
 git commit -m "chore: set up git flow with ci, templates and contributing guide"
 git push -u origin chore/git-flow-setup
 gh pr create --base develop --title "chore: set up git flow" --fill
 ```
 
-**El título del PR es el mensaje del commit** que quedará en `develop`, y el CI lo
-valida: Conventional Commit, sin mayúscula de frase al empezar (sí siglas como
-`README` o `API`), sin punto final, como mucho 100 caracteres. El cuerpo del commit
-queda vacío: el contexto va en la descripción del PR, enlazada por el `(#N)` del
-título.
+**The PR title is the commit message** that will land on `develop`, and the CI
+validates it: Conventional Commit, no capitalized first word (acronyms such as
+`README` or `API` are fine), no trailing period, 100 characters max. The commit body
+is empty: the context goes in the PR description, linked by the `(#N)` in the title.
 
-Fusiona **siempre con el script**, que espera a que los checks se registren y terminen
-y solo fusiona en verde, sin saltarse reglas:
+**Always merge with the script** (with a 10-minute tool timeout: it waits for the
+CI). It waits for the checks to register and finish and only merges when green,
+without bypassing rules:
 
 ```bash
-bash ~/.claude/skills/setup-git-flow/scripts/fusionar-pr.sh <numero> squash
+bash ~/.claude/skills/setup-git-flow/scripts/merge-pr.sh <number> squash
 ```
 
-Imprime `FUSIONADO` (sale con `0`) o `NO FUSIONADO` y el motivo (sale con `1`). Con
-`1`, **lee el log antes de tocar nada** (`references/incidencias.md`). Quédate con los
-checks que imprime: van al resumen.
+It prints `MERGED` (exit `0`) or `NOT MERGED` and the reason (exit `1`). With `1`,
+**read the log before touching anything** (`references/troubleshooting.md`). Keep the
+checks it prints: they go to the summary.
 
-Después, la primera release `develop → main`, con **merge commit**:
+Then the first `develop → main` release, with a **merge commit**:
 
 ```bash
 git checkout develop
 git pull --prune
 gh pr create --base main --head develop --title "chore: initial git flow setup" --fill
-bash ~/.claude/skills/setup-git-flow/scripts/fusionar-pr.sh <numero> merge
+bash ~/.claude/skills/setup-git-flow/scripts/merge-pr.sh <number> merge
 ```
 
-Y limpia la rama local del montaje (con squash, `-d` no la reconoce como fusionada):
+And remove the local setup branch (after a squash, `-d` does not see it as merged):
 
 ```bash
 git branch -D chore/git-flow-setup
 ```
 
-No se crea etiqueta de versión: la primera versión la decide el proyecto cuando tenga
-algo que publicar (procedimiento en la chuleta).
+No version tag is created: the project decides its first version when it has
+something to release (procedure in the cheatsheet).
 
-### 7. Documentar el montaje
+### 7. Document the setup
 
-Si el proyecto tiene `docs/progress.md` u otra documentación de estado, añade **en
-inglés**: la estrategia de ramas (o un enlace a `CONTRIBUTING.md`), si la protección
-está activa o pendiente y por qué, y la fecha. Si el usuario pidió no tocar algún
-fichero, respétalo y dilo en el resumen. Si no hay documentación, `CONTRIBUTING.md` es
-la fuente de verdad.
+If the project has `docs/progress.md` or other status documentation, add **in
+English**: the branching strategy (or a link to `CONTRIBUTING.md`), whether
+protection is active or pending and why, and the date. If the user asked not to touch
+some file, respect it and say so in the summary. With no documentation,
+`CONTRIBUTING.md` is the source of truth.
 
-## Cierre: primero la auditoría, después el resumen
+## Closing: audit first, then the summary
 
-### A. Auditoría
+### A. Audit
 
-**No escribas el resumen de memoria.** Lo que manda es el código de salida del script:
+**Do not write the summary from memory.** The script's exit code decides:
 
 ```bash
-bash ~/.claude/skills/setup-git-flow/scripts/auditar-cierre.sh
+bash ~/.claude/skills/setup-git-flow/scripts/audit-setup.sh                      # answer 3: no
+bash ~/.claude/skills/setup-git-flow/scripts/audit-setup.sh --no-ai-attribution  # answer 3: yes
 ```
 
-| Código | Significa | Qué hacer |
+| Exit | Means | What to do |
 |---|---|---|
-| `0` | `CERRADO` | escribe el resumen |
-| `1` | `PENDIENTE` y qué falta | **no reportes el montaje como completo** |
+| `0` | `CLOSED` | write the summary |
+| `1` | `PENDING` and what is missing | **do not report the setup as complete** |
 
-Ejecútalo desde la raíz del proyecto (si no, se niega). Hace `git fetch --prune` él
-mismo. Comprueba ocho cosas: árbol limpio, ninguna rama sin empujar ni sin upstream,
-`main` y `develop` en el remoto, `develop` sincronizada con `main`, ningún PR del
-montaje abierto, la rama temporal borrada en local y en remoto, todas las etiquetas
-subidas, y `develop` como rama por defecto. Otros PR abiertos (los de Dependabot, por
-ejemplo) salen como aviso `?` y no bloquean.
+Run it from the project root (otherwise it refuses). It runs `git fetch --prune`
+itself. It checks the local state (clean tree, no unpushed branch, `main` and
+`develop` on the remote and in sync, no setup PR open, the temporary branch deleted,
+every tag pushed, the CI and no `ai-attribution` markers on `develop`) and **reads
+back from GitHub** what step 4 applied: `develop` as the default branch, the merge
+settings, the three rulesets active, the pull request rule and the `Commit messages`
+check (bound to GitHub Actions) in effect on `main` and `develop`, and secret
+scanning. With `--no-ai-attribution` it also checks that no commit carries AI
+attribution.
 
-**Si sale `1`**, di exactamente qué falta y **pide permiso para terminarlo**. Si te lo
-da, termínalo y **vuelve a ejecutar el script**: lo que reportas es la segunda pasada.
+`?` lines are warnings that do not block: other open PRs (Dependabot's, for example),
+rulesets or secret scanning unavailable on the plan, and the default workflow token
+permissions (hardening, not part of the setup). Plan limits go to the summary as
+pending **with their reason**, never as a failure.
 
-Lo que el script no cubre a propósito: rulesets o secret scanning `NO DISPONIBLE` por
-el plan. Van al resumen como pendientes **con su motivo**, nunca como fallo.
+**If it exits `1`**, say exactly what is missing and **ask for permission to finish
+it**. If granted, finish it and **run the script again**: what you report is the
+second run.
 
-### B. Resumen, en español
+### B. Summary, in the user's language
 
-En español salvo que el usuario pida otro idioma; los identificadores (comandos, ramas,
-rutas, checks) en su forma original. Cubre **todos** los puntos; si alguno no aplica,
-dilo en vez de omitirlo:
+Identifiers (commands, branches, paths, checks) in their original form. Cover
+**every** point; if one does not apply, say so instead of omitting it:
 
-- **Repositorio**: URL, visibilidad (elegida por el usuario) y plan detectado.
-- **Gestor**: la respuesta 2 y qué ficheros se crearon por ella.
-- **Ramas**: `main` y `develop` en el remoto; `develop` como rama por defecto.
-- **Commit inicial**: la lista de ficheros que llevó.
-- **Plantillas y ficheros creados**, y los que ya existían y se respetaron.
-- **Ajustes de fusión**: aplicados o no.
-- **CI**: qué reportó `Commit messages` en cada PR. Recuerda que es independiente del
-  stack: cuando el proyecto tenga código, habrá que añadirle sus jobs y marcarlos como
-  requeridos en los rulesets.
-- **Rulesets**: aplicados, o pendientes con el motivo.
-- **Seguridad**: qué quedó activo y qué no está disponible en ese plan.
-- **gitleaks**: qué devolvió, o que el commit inicial fue **sin escanear**.
-- **Política de fusión**: squash hacia `develop`, merge commit hacia `main`, título del
-  PR como mensaje.
-- **Atribución de IA**: ningún commit ni PR la lleva (comprobado con el `git log` de
-  arriba).
-- **Licencia**: solo si el repo es público y no tiene `LICENSE`, avisa de que sin
-  licencia el código es "todos los derechos reservados" y que elegirla es decisión del
-  usuario. No la crees.
-- **Qué falló, se saltó o necesitó improvisación**: siempre presente; si nada, dilo.
-- **Auditoría**: nada pendiente, o qué queda y qué has preguntado.
+- **Repository**: URL, visibility (chosen by the user) and detected plan.
+- **Manager**: answer 2 and which files were created because of it. With an AI, how
+  daily work goes from now on ("tell it to upload your work: it proposes a plan, asks
+  once and does the rest"), and that it needs the skill and the permission rule of
+  check 6 on each machine.
+- **AI attribution rule**: answer 3 and what it added or removed (with "people only":
+  not asked, removed); with a yes, that no commit or PR carries it (audit check 15).
+- **Branches**: `main` and `develop` on the remote; `develop` as the default branch.
+- **Initial commit**: the list of files it included.
+- **Templates and files created**, and the existing ones that were respected.
+- **Merge settings**: as read back by the audit.
+- **CI**: what `Commit messages` reported on each PR. Remind the user it is
+  stack-agnostic: once the project has code, its jobs must be added and marked as
+  required in the rulesets.
+- **Rulesets**: active (read back by the audit), or pending with the reason.
+- **Security**: what is active and what is unavailable on that plan; the default
+  workflow token if the audit warned about it.
+- **gitleaks**: what it returned, or that the initial commit went in **unscanned**.
+- **Merge policy**: squash into `develop`, merge commit into `main`, PR title as the
+  message.
+- **License**: only if the repository is public and has no `LICENSE`, warn that
+  without a license the code is "all rights reserved" and that choosing one is the
+  user's decision. Do not create it.
+- **What failed, was skipped or needed improvisation**: always present; if nothing,
+  say so.
+- **Audit**: nothing pending, or what is left and what you asked.
 
-## Opciones que conviene considerar
+## Options worth considering
 
-Pregunta solo si el usuario lo menciona o no está claro:
+Ask only if the user mentions it or it is unclear:
 
-- **Un solo desarrollador o equipo**: por defecto `required_approving_review_count: 0`.
-  En equipo, súbelo a 1 o más en los dos rulesets y cambia la fila "Required approvals"
-  de la tabla de `CONTRIBUTING.md`. `fusionar-pr.sh` no se salta las aprobaciones.
-- **Jobs del CI**: si renombras el job en `ci.yml`, actualiza el `context` en los dos
-  rulesets. Los jobs que añada el proyecto más adelante solo son obligatorios si se
-  listan en los rulesets.
-- **Cambiar una regla de un ruleset**: cambia también la tabla de `CONTRIBUTING.md`.
+- **Solo developer or team**: `required_approving_review_count: 0` by default. For a
+  team, raise it to 1 or more in both rulesets and change the "Required approvals" row
+  of the `CONTRIBUTING.md` table. `merge-pr.sh` never bypasses approvals.
+- **CI jobs**: if you rename the job in `ci.yml`, update the `context` in both
+  rulesets. Jobs the project adds later are only required if listed in the rulesets.
+- **Changing a ruleset rule**: change the `CONTRIBUTING.md` table too.
