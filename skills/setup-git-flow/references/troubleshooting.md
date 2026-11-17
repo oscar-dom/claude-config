@@ -28,7 +28,7 @@
   (`gh pr edit <n> --title "..."`): the `edited` event runs the CI again.
 
 - **`Commit messages` fails on `Check source branch`** → a PR into `main` from a branch
-  that is not `develop`, `hotfix/*` or `release/*`. Change the PR base to `develop`
+  that is not `develop` or `hotfix/*`. Change the PR base to `develop`
   (`gh pr edit <n> --base develop`).
 
 - **A Dependabot PR fails the CI** → check that `.github/dependabot.yml` still has

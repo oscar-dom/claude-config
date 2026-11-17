@@ -50,7 +50,7 @@ CURRENT=$(git symbolic-ref --quiet --short HEAD) || fail "detached HEAD: check o
 case "$CURRENT" in
   main) fail "you are on main: work goes through develop (a production fix is a hotfix, see docs/git-cheatsheet.md)";;
   hotfix/*) fail "you are on $CURRENT: a hotfix goes to main, finish it with hotfix.sh finish";;
-  release/*|chore/sync-*) fail "you are on $CURRENT: it is not a working branch, ship.sh does not handle it";;
+  chore/sync-*) fail "you are on $CURRENT: it brings a hotfix into develop, finish it with hotfix.sh finish";;
   develop)
     case "$BRANCH" in main|develop) fail "branch name '$BRANCH' is reserved";; esac
     # Check before branching, so "nothing to save" leaves no empty branch behind.
@@ -134,7 +134,8 @@ if ! OUT=$(bash "$SCRIPTS/merge-pr.sh" "$PR" squash 2>&1); then
   printf '%s\n' "$OUT" | sed 's/^/           /'
   fail "PR #$PR was not merged (see above); the work is safe on $BRANCH"
 fi
-printf '%s\n' "$OUT" | sed -n 's/^  \(pass\|fail\|skipping\)\t\(.*\)$/  check    \2: \1/p'
+# merge-pr.sh lists the checks as "  <bucket><TAB><name>" (awk: portable to BSD and GNU)
+printf '%s\n' "$OUT" | awk -F '\t' '/^  (pass|fail|skipping)\t/ { sub(/^  /, "", $1); print "  check    " $2 ": " $1 }'
 echo "  merge    PR #$PR squashed into develop"
 
 # 6. Local cleanup: back on an up-to-date develop, working branch removed

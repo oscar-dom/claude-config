@@ -31,7 +31,7 @@ This guide explains how to work in this repository: the *what* and the *why*.
 
 ```
 main        ← production: every commit is a release, protected
-  ↑ PR — merge commit        (from develop, hotfix/* or release/*)
+  ↑ PR — merge commit        (from develop or hotfix/*)
 develop     ← integration, protected, default branch
   ↑ PR — squash
 <type>/<description>   ← one short-lived branch per change
@@ -46,13 +46,14 @@ Two special branches only exist when needed:
 - `hotfix/<description>` — an urgent fix for production. Branches from `main`, merges
   back into `main`, and then a branch cut from `main` is merged into `develop` so the
   fix is not lost.
-- `release/<version>` — optional, to stabilize a release while `develop` keeps moving.
+- `chore/sync-<version>` — that branch: cut from `main` after a hotfix, merged into
+  `develop`.
 
 ### Rules
 
 - **Never** push directly to `main` or `develop`. Always go through a pull request.
 - Every change is developed on its own branch, created from an up-to-date `develop`.
-- Only `develop`, `hotfix/*` and `release/*` can be merged into `main` (CI checks it).
+- Only `develop` and `hotfix/*` can be merged into `main` (CI checks it).
 - Rewrite history only on your own unmerged branch, and push it with
   `--force-with-lease`, never `--force`.
 
@@ -61,7 +62,7 @@ Two special branches only exist when needed:
 | PR | Method | Why |
 |----|--------|-----|
 | working branch → `develop` | **Squash** | one clean commit per change; the branch is deleted |
-| `develop` / `hotfix/*` / `release/*` → `main` | **Merge commit** | keeps the long-lived histories connected |
+| `develop` / `hotfix/*` → `main` | **Merge commit** | keeps the long-lived histories connected |
 | `chore/sync-*` (cut from `main`) → `develop`, after a hotfix | **Merge commit** | brings the fix back without rewriting anything |
 
 The repository is configured so that both methods use the **PR title** as the commit
@@ -119,7 +120,7 @@ list of types for the repository.
 - **No trailing period**, **100 characters max**.
 - Breaking change: `!` after the type, `feat!: ...`. Put it in the PR title: it is
   what survives the squash. A `BREAKING CHANGE:` footer only survives in commits that
-  reach `main` as they are (`hotfix/*`, `release/*`).
+  reach `main` as they are (`hotfix/*`).
 - A pull request opened with GitHub's **Revert** button keeps its `Revert "..."` title:
   CI accepts it as is.
 

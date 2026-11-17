@@ -1,4 +1,4 @@
-# Shared by ship.sh and hotfix.sh. Sourced, not run.
+# Shared by ship.sh, release.sh and hotfix.sh. Sourced, not run.
 #
 # The commit convention, in ONE place for the scripts. The CI template
 # (templates/.github/workflows/ci.yml) needs its own copy because it runs in the
@@ -13,6 +13,19 @@ CC_MAX_LENGTH=100
 
 # What to tell the user when a title is rejected.
 TITLE_RULE="<type>[(scope)][!]: <description>, no capitalized first word (acronyms are fine), no final period, max $CC_MAX_LENGTH characters"
+
+# version_gt vA.B.C vX.Y.Z -> 0 if the first version is higher. Pure bash: `sort -V`
+# is missing on some systems.
+version_gt() {
+  local a b i
+  IFS=. read -r -a a <<< "${1#v}"
+  IFS=. read -r -a b <<< "${2#v}"
+  for i in 0 1 2; do
+    [ "${a[i]:-0}" -gt "${b[i]:-0}" ] && return 0
+    [ "${a[i]:-0}" -lt "${b[i]:-0}" ] && return 1
+  done
+  return 1
+}
 
 # valid_title "<title>" -> 0 if the title follows the convention.
 valid_title() {

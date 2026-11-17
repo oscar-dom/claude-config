@@ -38,13 +38,12 @@ git branch -D feat/short-description
 ## Repository setup
 
 ```
-main        ← production (merge commits only, from develop / hotfix/* / release/*)
+main        ← production (merge commits only, from develop / hotfix/*)
   ↑ PR — merge commit
 develop     ← integration, default branch
   ↑ PR — squash
 feat/ fix/ docs/ refactor/ test/ perf/ style/ build/ ci/ chore/ revert/
 hotfix/     ← urgent production fix: from main, back into main
-release/    ← optional release stabilization
 ```
 
 PROTECTION_STATUS
@@ -54,7 +53,7 @@ PROTECTION_STATUS
 | PR | Command |
 |----|---------|
 | working branch → `develop` | `gh pr merge --squash --delete-branch` |
-| `develop`, `hotfix/*`, `release/*` → `main` | `gh pr merge --merge` |
+| `develop`, `hotfix/*` → `main` | `gh pr merge --merge` |
 | `chore/sync-*` (cut from `main`) → `develop`, after a hotfix | `gh pr merge --merge --delete-branch` |
 
 Both methods use the **PR title** as the commit message, with an empty body
@@ -83,8 +82,8 @@ the PR title survives. On `hotfix/*` branches every commit must follow the conve
 because it lands on `main` unchanged.
 
 A commit with a body, for when the change needs context. The body only survives on
-`hotfix/*` and `release/*` branches, which reach `main` as they are; on a working
-branch, write the context in the PR description instead:
+`hotfix/*` branches, which reach `main` as they are; on a working branch, write the
+context in the PR description instead:
 
 ```
 fix: prevent race condition when closing transactions
@@ -228,7 +227,7 @@ gh run view --log-failed
 
 The `Commit messages` check runs these steps; the log says which one failed:
 
-- `Check source branch`: only `develop`, `hotfix/*` and `release/*` may target `main`.
+- `Check source branch`: only `develop` and `hotfix/*` may target `main`.
 - `Validate PR title`: the title is a Conventional Commit.
 - `Validate commit messages`: every commit, on PRs into `main` only.
 <!-- ai-attribution:start -->

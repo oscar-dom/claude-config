@@ -21,6 +21,7 @@ set -u
 main() {
 SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fail() { echo "NOT RELEASED: $*"; exit 1; }
+. "$SCRIPTS/lib.sh"
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "not inside a git repository"
 git fetch -q --tags origin main develop || fail "could not fetch main and develop"
@@ -65,7 +66,7 @@ fi
 VERSION="${1:-}"
 printf '%s' "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail "usage: release.sh --suggest | release.sh vX.Y.Z"
 git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1 && fail "tag $VERSION already exists"
-if [ -n "$LAST" ] && [ "$(printf '%s\n%s\n' "${LAST#v}" "${VERSION#v}" | sort -V | tail -1)" != "${VERSION#v}" ]; then
+if [ -n "$LAST" ] && ! version_gt "$VERSION" "$LAST"; then
   fail "$VERSION is not higher than the current version $LAST"
 fi
 git tag -d "$VERSION" >/dev/null 2>&1   # a local-only tag from a cut-off run: recreated below
