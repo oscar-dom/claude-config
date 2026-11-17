@@ -61,8 +61,8 @@ echo "Checks del PR #$PR:"
 gh pr checks "$PR" --json name,bucket --jq '.[] | "  \(.bucket)\t\(.name)"'
 
 CABEZA=$(gh pr view "$PR" --json headRefName --jq .headRefName 2>/dev/null)
-# El mensaje del commit lo ponen los ajustes del repo (titulo y descripcion del
-# PR), asi que aqui no se pasa --subject ni --body.
+# El mensaje del commit lo ponen los ajustes del repo (titulo del PR, cuerpo
+# vacio), asi que aqui no se pasa --subject ni --body.
 if [ "$MODO" = "squash" ]; then
   ARGS=(--squash --delete-branch)
 else

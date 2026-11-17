@@ -62,9 +62,10 @@ Two special branches only exist when needed:
 | `develop` / `hotfix/*` / `release/*` → `main` | **Merge commit** | keeps the long-lived histories connected |
 | `chore/sync-*` (cut from `main`) → `develop`, after a hotfix | **Merge commit** | brings the fix back without rewriting anything |
 
-The repository is configured so that both methods use the **PR title and description**
-as the commit message, rebase merging is disabled, and merged branches are deleted
-automatically.
+The repository is configured so that both methods use the **PR title** as the commit
+message, with an empty body: the description stays on the pull request, linked from
+the `(#123)` GitHub appends to the squashed title. Rebase merging is disabled and
+merged branches are deleted automatically.
 
 **Why releases use a merge commit instead of squash:** `develop` and `main` are both
 long-lived branches. Squashing `develop → main` creates a new commit on `main` that
@@ -91,7 +92,7 @@ list of types for the repository.
 
 [optional body: the "why" of the change]
 
-[optional footer: BREAKING CHANGE: ..., Closes #123]
+[optional footer: BREAKING CHANGE: ...]
 ```
 
 | Type | When to use it | Example |
@@ -111,8 +112,14 @@ list of types for the repository.
 ### Rules
 
 - Description in the **imperative, present tense** ("add", not "added" or "adds").
-- **Lowercase** first letter, **no trailing period**, **72 characters max**.
-- Breaking change: `feat!:` or a `BREAKING CHANGE:` footer.
+- Do **not** capitalize the first word (`add`, not `Add`); acronyms and names in
+  capitals are fine (`fix: README typo`, `feat: API keys`).
+- **No trailing period**, **100 characters max**.
+- Breaking change: `!` after the type, `feat!: ...`. Put it in the PR title: it is
+  what survives the squash. A `BREAKING CHANGE:` footer only survives in commits that
+  reach `main` as they are (`hotfix/*`, `release/*`).
+- A pull request opened with GitHub's **Revert** button keeps its `Revert "..."` title:
+  CI accepts it as is.
 
 ### What CI validates
 
@@ -130,7 +137,8 @@ So inside a working branch, commit freely: what matters is the PR title. Commits
 
 - Fill in the pull request template.
 - Title: a Conventional Commit (see above). It becomes the commit message.
-- Link issues in the description: `Closes #123`.
+- Link issues in the description: `Closes #123`. The description is not copied into
+  the commit, so this is where the *why* of the change lives.
 - Labels (optional): `bug`, `enhancement`, `documentation`.
 - Keep the title and description free of AI attribution.
 - Wait for CI to pass before merging.
@@ -148,6 +156,10 @@ PROTECTION_STATUS
 | All review conversations resolved | no | yes |
 | Force push and branch deletion | blocked | blocked |
 | Version tags `v*` | — | cannot be moved or deleted |
+
+Nobody can push directly to `develop` or `main`. Repository **admins**, however, can
+merge a pull request that does not meet these rules: GitHub shows them a "bypass
+rules" option. It is an escape hatch for a broken CI, not part of the normal flow.
 
 Approvals default to 0 so a solo maintainer can merge their own pull requests. For a
 team, raise `required_approving_review_count` in the rulesets to 1 or more.

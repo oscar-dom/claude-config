@@ -80,8 +80,31 @@ Detalle que se carga solo cuando hace falta:
 4. **Commits y remoto:** `git rev-parse --verify HEAD` y `git remote -v`. Si falta
    alguno, el paso 1 se encarga.
 
+   **Si ya hay commits, la rama principal tiene que llamarse `main`.** Todo lo demás
+   (rulesets, CI, plantillas, scripts) asume ese nombre: con `master` el paso 3 falla
+   y los rulesets protegerían una `main` que nadie usa. Comprueba la rama actual y,
+   si hay remoto, la rama por defecto de GitHub:
+
+   ```bash
+   git branch --list main master trunk
+   gh repo view --json defaultBranchRef --jq .defaultBranchRef.name   # solo con remoto
+   ```
+
+   Si la principal no es `main`, **para y pregunta** si renombrarla. Explica que
+   GitHub reapunta los PR abiertos y redirige las URL antiguas, y que quien tenga un
+   clon tendrá que hacer `git branch -m <antigua> main` (GitHub se lo indica). Con un
+   sí, y nunca sin él:
+
+   ```bash
+   bash ~/.claude/skills/setup-git-flow/scripts/renombrar-rama-principal.sh <antigua>
+   ```
+
+   Imprime `RENOMBRADA` (sale con `0`) o `NO RENOMBRADA` y el motivo (sale con `1`).
+   Si ya existen las dos ramas, no elijas tú: pregunta cuál se queda. Si el usuario
+   prefiere no renombrar, la skill no se aplica tal cual: díselo y para.
+
 5. **Las dos preguntas del montaje, en UNA sola tarjeta de `AskUserQuestion`.** Son
-   las únicas decisiones que el usuario toma en cada ejecución. Pregúntalas antes de
+   las únicas decisiones que el usuario toma en todas las ejecuciones. Pregúntalas antes de
    crear nada y espera la respuesta. No las deduzcas del proyecto, de un valor por
    defecto ni de una ejecución anterior.
 
@@ -216,8 +239,8 @@ como mensaje y el PR de `develop` a `main` ya esté limitado a merge commit:
 bash ~/.claude/skills/setup-git-flow/scripts/configurar-github.sh
 ```
 
-Aplica, en este orden: ajustes de fusión (squash y merge commit con el título y la
-descripción del PR, sin rebase, ramas borradas al fusionar), `develop` como rama por
+Aplica, en este orden: ajustes de fusión (squash y merge commit con el título del PR
+como mensaje y el cuerpo vacío, sin rebase, ramas borradas al fusionar), `develop` como rama por
 defecto, alertas y parches de Dependabot, secret scanning y push protection, y los
 rulesets `Protect main`, `Protect develop` y `Protect release tags` (los crea, o los
 actualiza si ya existen). Detalle en `references/github-planes-y-reglas.md`.
@@ -289,8 +312,10 @@ gh pr create --base develop --title "chore: set up git flow" --fill
 ```
 
 **El título del PR es el mensaje del commit** que quedará en `develop`, y el CI lo
-valida: Conventional Commit, minúscula al empezar, sin punto final, como mucho 72
-caracteres.
+valida: Conventional Commit, sin mayúscula de frase al empezar (sí siglas como
+`README` o `API`), sin punto final, como mucho 100 caracteres. El cuerpo del commit
+queda vacío: el contexto va en la descripción del PR, enlazada por el `(#N)` del
+título.
 
 Fusiona **siempre con el script**, que espera a que los checks se registren y terminen
 y solo fusiona en verde, sin saltarse reglas:
