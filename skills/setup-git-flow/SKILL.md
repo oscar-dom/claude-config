@@ -94,9 +94,11 @@ Detail loaded only when needed:
    branches already exist, do not choose: ask which one stays. If the user prefers not
    to rename, the skill does not apply as is: say so and stop.
 
-5. **The three setup questions, in ONE `AskUserQuestion` card.** They are the only
-   decisions the user makes on every run. Ask them before creating anything and wait
-   for the answer. Do not infer them from the project, a default or a previous run.
+5. **The setup questions, asked with `AskUserQuestion`.** Questions 1 and 2 go in ONE
+   card; question 3 only exists when answer 2 is an AI, and goes in a second card right
+   after. They are the only decisions the user makes. Ask them before creating
+   anything and wait for the answers. Do not infer them from the project, a default or
+   a previous run.
 
    **First read the plan**, so the visibility question states the real consequences
    for that account without the user having to explain them:
@@ -126,11 +128,20 @@ Detail loaded only when needed:
 
    | Answer | What is added (step 5) |
    |---|---|
-   | Claude Code | `CLAUDE.md` (+ Claude's personal files in `.gitignore`, step 1) |
-   | Another AI (Codex, Cursor, Copilot…) | `AGENTS.md` |
-   | People only | nothing else |
+   | Claude Code | `CLAUDE.md` with the daily git recipes (+ Claude's personal files in `.gitignore`, step 1) |
+   | Another AI (Codex, Cursor, Copilot…) | `AGENTS.md` with the same recipes |
+   | People only | nothing AI-related, and question 3 is **not** asked |
 
-   **Question 3, "no AI attribution" rule.** Should the repository forbid AI tools from
+   With an AI, the recipes let it run the whole daily flow for a user who may know no
+   git: it inspects the changes, proposes one plan in plain language, asks once and
+   then ships it with `ship.sh` (branch, commit, PR, CI, merge, cleanup) or releases
+   it with `release.sh` (release PR, CI, merge commit, tag, GitHub release). Tell the
+   user, in the summary, that this needs the skill installed and the permission rule
+   of check 6 on each machine they work from.
+
+   **Question 3, only if answer 2 is an AI: "no AI attribution" rule.** With "people
+   only" do not ask it: it is a **no**, and step 5 removes the rule's blocks.
+   Should the repository forbid AI tools from
    leaving their mark as collaborators (`Co-Authored-By:` trailers for an AI,
    "Generated with …" lines, an AI as author or committer)? Describe both options
    neutrally:
@@ -165,6 +176,10 @@ Detail loaded only when needed:
    - If the rule is missing, **do not add it yourself**: tell the user and ask.
    - **Never grant `gh api -X PATCH repos/<owner>/*`** or similar: it would allow any
      PATCH on any repository, including making it public.
+   The same rule covers `ship.sh` and `release.sh`, which the AI uses every day in the
+   repository (question 2): with it, daily work needs one confirmation per operation
+   instead of a permission prompt per git command.
+
    - **No permissions inside the project.** The only `.claude/settings.json` the skill
      creates is the one from question 3, and it only turns attribution off:
      permissions belong to each person, not to the repository.
@@ -306,7 +321,7 @@ rule is met at the source. **Never add permissions to it.**
 
 ```bash
 bash ~/.claude/skills/setup-git-flow/scripts/ai-attribution.sh keep     # answer: yes
-bash ~/.claude/skills/setup-git-flow/scripts/ai-attribution.sh remove   # answer: no
+bash ~/.claude/skills/setup-git-flow/scripts/ai-attribution.sh remove   # answer: no, or people only
 ```
 
 The templates wrap everything about the rule between `ai-attribution:start` /
@@ -421,9 +436,12 @@ Identifiers (commands, branches, paths, checks) in their original form. Cover
 **every** point; if one does not apply, say so instead of omitting it:
 
 - **Repository**: URL, visibility (chosen by the user) and detected plan.
-- **Manager**: answer 2 and which files were created because of it.
-- **AI attribution rule**: answer 3 and what it added or removed; with a yes, that no
-  commit or PR carries it (audit check 15).
+- **Manager**: answer 2 and which files were created because of it. With an AI, how
+  daily work goes from now on ("tell it to upload your work: it proposes a plan, asks
+  once and does the rest"), and that it needs the skill and the permission rule of
+  check 6 on each machine.
+- **AI attribution rule**: answer 3 and what it added or removed (with "people only":
+  not asked, removed); with a yes, that no commit or PR carries it (audit check 15).
 - **Branches**: `main` and `develop` on the remote; `develop` as the default branch.
 - **Initial commit**: the list of files it included.
 - **Templates and files created**, and the existing ones that were respected.

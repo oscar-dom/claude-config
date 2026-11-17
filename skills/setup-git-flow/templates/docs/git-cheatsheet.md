@@ -1,7 +1,7 @@
 # Git Cheatsheet
 
 > **For humans:** the exact commands for working in this repository.
-> **For AI agents:** a self-contained description of the project's Git setup. Read it before running `git` or `gh` commands here.
+> **For AI agents:** your daily recipes are in `CLAUDE.md` / `AGENTS.md`. Come here only for the edge cases they point to.
 >
 > The policy and the reasons behind it are in [`CONTRIBUTING.md`](../CONTRIBUTING.md),
 > which also holds the list of commit types.

@@ -123,12 +123,15 @@ What it always does, on every run:
 
 - **Reads the GitHub plan and asks for the visibility** before creating the repository,
   showing what each option costs on that plan. There is no default.
-- **Asks who will manage the repository** (Claude Code, another AI or people only) and
-  only then adds `CLAUDE.md` or `AGENTS.md`.
-- **Asks whether to forbid AI attribution** (`Co-Authored-By:` trailers, "Generated
-  with" lines). With a yes, a CI step blocks PRs that carry it and, with Claude Code,
-  a project `.claude/settings.json` turns it off at the source. With a no, nothing
-  about it is added.
+- **Asks who will manage the repository** (Claude Code, another AI or people only).
+  With an AI it adds `CLAUDE.md` or `AGENTS.md` with daily recipes: the agent looks
+  at your changes, proposes one plan in plain language, asks once and ships it with
+  `ship.sh` (branch, commit, PR, CI, merge, cleanup) or releases it with `release.sh`
+  (release PR, CI, merge commit, tag, GitHub release).
+- **Only with an AI, asks whether to forbid AI attribution** (`Co-Authored-By:`
+  trailers, "Generated with" lines). With a yes, a CI step blocks PRs that carry it
+  and, with Claude Code, a project `.claude/settings.json` turns it off at the source.
+  With a no, or with people only, nothing about it is added.
 - **Audits the close** before declaring anything done: no open PRs, unpushed commits,
   branches without upstream or pending promotions, and it reads back from GitHub the
   merge settings, rulesets and required check it applied. If something is missing, it
