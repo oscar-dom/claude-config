@@ -88,7 +88,7 @@ ship. They live under `skills/*/templates/.github/workflows/` and this repo neve
 runs them, so without this they would only be validated once a skill had already
 copied them into a real project.
 
-Two jobs, because they catch different things:
+Three jobs, because they catch different things:
 
 - **actionlint** — workflow syntax, expressions, runner labels, shellcheck over
   `run:` blocks.
@@ -97,6 +97,11 @@ Two jobs, because they catch different things:
   line is *well-formed*, never that the ref exists; `astral-sh/setup-uv@v10` passes
   actionlint cleanly and still fails at runtime, because Astral stopped publishing
   floating major tags after v7.
+- **Commit convention in sync** (`scripts/check-convention-sync.sh`) — the commit
+  convention lives both in `setup-git-flow/scripts/lib.sh` (used by `ship.sh` and
+  `hotfix.sh`) and in the CI template, which runs in the user's repository and
+  cannot read the skill. If the two drift, the agent would ship titles the CI
+  rejects; this job fails first.
 
 ## Available skills
 

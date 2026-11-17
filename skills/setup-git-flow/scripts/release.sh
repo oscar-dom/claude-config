@@ -12,7 +12,9 @@
 # Exit:   0 and a last line "SUGGESTED ..." / "RELEASED ...",
 #         1 and a last line "NOT RELEASED: <reason>".
 #
-# Run the release with a 10-minute tool timeout: it waits for the CI.
+# The release waits for the CI, which can take longer than a tool timeout: agents
+# run it in the background. If it is cut off anyway, run it again with the same
+# version: it reuses the open PR, or tags the release if it was already merged.
 
 set -u
 
@@ -62,12 +64,18 @@ fi
 
 VERSION="${1:-}"
 printf '%s' "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail "usage: release.sh --suggest | release.sh vX.Y.Z"
+git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1 && fail "tag $VERSION already exists"
+git tag -d "$VERSION" >/dev/null 2>&1   # a local-only tag from a cut-off run: recreated below
+TITLE="chore: release $VERSION"
+
+# Resume: a previous run merged the release (main's last commit is this release's
+# merge commit, titled after the PR) and was cut off before tagging.
+if [ -z "$CHANGES" ] && [ "$(git log -1 --format=%s origin/main)" = "$TITLE" ]; then
+  echo "  resume   the release PR was already merged into main"
+else
 [ -n "$CHANGES" ] || fail "develop has nothing that main does not already have"
-git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null && fail "tag $VERSION already exists"
-git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1 && fail "tag $VERSION already exists on the remote"
 [ -z "$(git status --porcelain)" ] || fail "uncommitted changes: ship or set them aside first"
 
-TITLE="chore: release $VERSION"
 PR=$(gh pr list --head develop --base main --state open --json number --jq '.[0].number' 2>/dev/null)
 if [ -z "$PR" ]; then
   BODY=$(printf 'Release %s.\n\n%s\n' "$VERSION" "$(printf '%s\n' "$CHANGES" | sed 's/^/- /')")
@@ -85,6 +93,7 @@ if ! OUT=$(bash "$SCRIPTS/merge-pr.sh" "$PR" merge 2>&1); then
   fail "release PR #$PR was not merged (see above)"
 fi
 echo "  merge    PR #$PR merged into main (merge commit)"
+fi
 
 git fetch -q origin main || fail "merged, but could not fetch main to tag it"
 git tag -a "$VERSION" -m "$VERSION" origin/main || fail "merged, but could not create tag $VERSION"

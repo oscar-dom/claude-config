@@ -15,8 +15,9 @@
 #         but the sync into develop fails, the last line says so: the release
 #         stands and only the sync is left.
 #
-# Run `finish` with a 10-minute tool timeout (or in the background): it waits for
-# the CI twice.
+# `finish` waits for the CI twice, which can take longer than a tool timeout:
+# agents run it in the background. If it is cut off anyway, run it again: it
+# detects what is already done (merged, tagged, synced) and continues.
 
 set -u
 
@@ -53,87 +54,128 @@ while [ $# -gt 0 ]; do
 done
 
 BRANCH=$(git symbolic-ref --quiet --short HEAD) || fail "detached HEAD"
-case "$BRANCH" in hotfix/*) ;; *) fail "not on a hotfix/* branch (run: hotfix.sh start <name>)";; esac
-
-# On main every commit lands as it is, so the title is the commit and must pass the CI.
-CC='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?!?: ([^A-Z[:space:]]|[A-Z][A-Z0-9])(.*[^.[:space:]])?$'
-printf '%s' "$TITLE" | grep -qE "$CC" && [ "${#TITLE}" -le 100 ] \
-  || fail "title is not a valid Conventional Commit (lowercase start, no final period, max 100): $TITLE"
-
+case "$BRANCH" in
+  hotfix/*) MODE=hotfix;;
+  chore/sync-v*) MODE=sync; VERSION="${BRANCH#chore/sync-}";;   # resuming a cut-off sync
+  *) fail "not on a hotfix/* branch (run: hotfix.sh start <name>)";;
+esac
 git fetch -q --tags origin main develop || fail "could not fetch main and develop"
-if [ -z "$VERSION" ]; then
-  LAST=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' origin/main 2>/dev/null) \
-    || fail "main has no version tag yet: pass --version vX.Y.Z"
-  IFS=. read -r MA MI PA <<< "${LAST#v}"
-  VERSION="v$MA.$MI.$((PA + 1))"
-fi
-printf '%s' "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail "invalid version: $VERSION"
-git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null && fail "tag $VERSION already exists"
-git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1 && fail "tag $VERSION already exists on the remote"
+. "$SCRIPTS/lib.sh"
 
-# 1. Commit the fix
-[ ${#PATHS[@]} -gt 0 ] && { git add -- "${PATHS[@]}" || fail "git add failed"; }
-if ! git diff --cached --quiet; then
-  git commit -q -m "$TITLE" || fail "git commit failed (a hook may have rejected it)"
-  echo "  commit   $(git log -1 --format='%h %s')"
-fi
-[ "$(git rev-list --count origin/main..HEAD)" -gt 0 ] || fail "the hotfix branch has no commits: write the fix first"
-[ -z "$(git status --porcelain)" ] || echo "  ?        uncommitted changes left out of the hotfix: $(git status --porcelain | wc -l) file(s)"
+# Every step below checks whether a previous, cut-off run already did it, so
+# running `finish` again always continues where it stopped.
 
-# 2. Push and PR into main
-if ! OUT=$(git push -q --force-with-lease -u origin "$BRANCH" 2>&1); then
-  printf '%s\n' "$OUT" | tail -5 | sed 's/^/           /'
-  fail "push rejected"
-fi
-PR=$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[0].number' 2>/dev/null)
-if [ -z "$PR" ]; then
-  BODY=$(printf 'Hotfix %s.\n\n%s\n' "$VERSION" "$(git log --reverse --format='- %s' origin/main..HEAD)")
-  URL=$(gh pr create --base main --head "$BRANCH" --title "$TITLE" --body "$BODY" 2>&1) \
-    || fail "could not open the pull request into main: $URL"
-  PR=$(printf '%s' "$URL" | grep -oE '[0-9]+$')
-  echo "  pr       #$PR opened into main: $URL"
+if [ "$MODE" = "hotfix" ]; then
+  MAIN_PR=$(gh pr list --head "$BRANCH" --base main --state merged --json number --jq '.[0].number' 2>/dev/null)
+  if [ -n "$MAIN_PR" ]; then
+    echo "  resume   PR #$MAIN_PR was already merged into main"
+  else
+    # On main every commit lands as it is, so the title is the commit and must
+    # pass the CI (same rule, from lib.sh).
+    valid_title "$TITLE" \
+      || fail "title is not a valid Conventional Commit (lowercase start, no final period, max 100): $TITLE"
+    if [ -n "$VERSION" ]; then
+      printf '%s' "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail "invalid version: $VERSION"
+      git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1 && fail "tag $VERSION already exists"
+    fi
+
+    # 1. Commit the fix
+    [ ${#PATHS[@]} -gt 0 ] && { git add -- "${PATHS[@]}" || fail "git add failed"; }
+    if ! git diff --cached --quiet; then
+      git commit -q -m "$TITLE" || fail "git commit failed (a hook may have rejected it)"
+      echo "  commit   $(git log -1 --format='%h %s')"
+    fi
+    [ "$(git rev-list --count origin/main..HEAD)" -gt 0 ] || fail "the hotfix branch has no commits: write the fix first"
+    [ -z "$(git status --porcelain)" ] || echo "  ?        uncommitted changes left out of the hotfix: $(git status --porcelain | wc -l) file(s)"
+
+    # 2. Push and PR into main
+    if ! OUT=$(git push -q --force-with-lease -u origin "$BRANCH" 2>&1); then
+      printf '%s\n' "$OUT" | tail -5 | sed 's/^/           /'
+      fail "push rejected"
+    fi
+    MAIN_PR=$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[0].number' 2>/dev/null)
+    if [ -z "$MAIN_PR" ]; then
+      BODY=$(printf 'Hotfix.\n\n%s\n' "$(git log --reverse --format='- %s' origin/main..HEAD)")
+      URL=$(gh pr create --base main --head "$BRANCH" --title "$TITLE" --body "$BODY" 2>&1) \
+        || fail "could not open the pull request into main: $URL"
+      MAIN_PR=$(printf '%s' "$URL" | grep -oE '[0-9]+$')
+      echo "  pr       #$MAIN_PR opened into main: $URL"
+    else
+      echo "  pr       #$MAIN_PR already open into main"
+    fi
+
+    # 3. CI and merge commit into main
+    if ! OUT=$(bash "$SCRIPTS/merge-pr.sh" "$MAIN_PR" merge 2>&1); then
+      printf '%s\n' "$OUT" | sed 's/^/           /'
+      fail "PR #$MAIN_PR was not merged into main (see above); nothing was released"
+    fi
+    echo "  merge    PR #$MAIN_PR merged into main"
+    git fetch -q --tags origin main || fail "merged, but could not fetch main"
+  fi
+  MSHA=$(gh pr view "$MAIN_PR" --json mergeCommit --jq .mergeCommit.oid 2>/dev/null)
+  [ -n "$MSHA" ] && git cat-file -e "$MSHA^{commit}" 2>/dev/null || fail "merged, but could not find the merge commit of PR #$MAIN_PR"
+
+  # 4. Patch tag and GitHub release, unless a previous run already tagged it
+  TAGGED=$(git tag --points-at "$MSHA" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+  if [ -n "$TAGGED" ]; then
+    VERSION="$TAGGED"
+    echo "  resume   already tagged $VERSION"
+  else
+    if [ -z "$VERSION" ]; then
+      LAST=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' "$MSHA" 2>/dev/null) \
+        || fail "merged into main, but main has no version tag yet: run again with --version vX.Y.Z"
+      IFS=. read -r MA MI PA <<< "${LAST#v}"
+      VERSION="v$MA.$MI.$((PA + 1))"
+    fi
+    git tag -a "$VERSION" -m "$VERSION" "$MSHA" || fail "merged into main, but could not create tag $VERSION"
+    git push -q origin "refs/tags/$VERSION" || fail "merged into main, but the tag push failed: git push origin $VERSION"
+    echo "  tag      $VERSION on $(git rev-parse --short "$MSHA")"
+    if gh release create "$VERSION" --verify-tag --title "$VERSION" --generate-notes >/dev/null 2>&1; then
+      echo "  release  $VERSION published on GitHub"
+    else
+      echo "  ?        tag pushed, but the GitHub release failed: gh release create $VERSION --verify-tag --generate-notes"
+    fi
+  fi
 else
-  echo "  pr       #$PR already open into main"
+  MSHA=$(git rev-parse -q --verify "refs/tags/$VERSION^{commit}") || fail "on $BRANCH, but tag $VERSION does not exist"
+  echo "  resume   syncing $VERSION into develop"
 fi
 
-# 3. CI, merge commit into main, tag and release
-if ! OUT=$(bash "$SCRIPTS/merge-pr.sh" "$PR" merge 2>&1); then
-  printf '%s\n' "$OUT" | sed 's/^/           /'
-  fail "PR #$PR was not merged into main (see above); nothing was released"
-fi
-echo "  merge    PR #$PR merged into main"
-git fetch -q origin main || fail "merged, but could not fetch main to tag it"
-git tag -a "$VERSION" -m "$VERSION" origin/main || fail "merged into main, but could not create tag $VERSION"
-git push -q origin "refs/tags/$VERSION" || fail "merged into main, but the tag push failed: git push origin $VERSION"
-echo "  tag      $VERSION on $(git rev-parse --short origin/main)"
-if gh release create "$VERSION" --verify-tag --title "$VERSION" --generate-notes >/dev/null 2>&1; then
-  echo "  release  $VERSION published on GitHub"
-else
-  echo "  ?        tag pushed, but the GitHub release failed: gh release create $VERSION --verify-tag --generate-notes"
-fi
-
-# 4. Bring the fix back into develop. Through a branch cut from main, never with
-#    main as the PR head: merged heads get deleted.
+# 5. Bring the fix back into develop. Through a branch cut from the released
+#    commit, never with main as the PR head: merged heads get deleted.
 SYNC="chore/sync-$VERSION"
-git checkout -q -B "$SYNC" origin/main || fail "released $VERSION, but could not create $SYNC: bring main into develop by hand"
-if ! OUT=$(git push -q --force-with-lease -u origin "$SYNC" 2>&1); then
-  fail "released $VERSION, but the push of $SYNC failed: bring main into develop by hand"
+if git merge-base --is-ancestor "$MSHA" origin/develop; then
+  echo "  sync     $VERSION is already in develop"
+else
+  SPR=$(gh pr list --head "$SYNC" --base develop --state open --json number --jq '.[0].number' 2>/dev/null)
+  if [ -z "$SPR" ]; then
+    git checkout -q -B "$SYNC" "$MSHA" || fail "released $VERSION, but could not create $SYNC: bring main into develop by hand"
+    git push -q --force-with-lease -u origin "$SYNC" >/dev/null 2>&1 \
+      || fail "released $VERSION, but the push of $SYNC failed: run hotfix.sh finish again"
+    URL=$(gh pr create --base develop --head "$SYNC" --title "chore: bring hotfix $VERSION into develop" \
+          --body "Brings the $VERSION hotfix back into develop." 2>&1) \
+      || fail "released $VERSION, but could not open the sync PR into develop: $URL"
+    SPR=$(printf '%s' "$URL" | grep -oE '[0-9]+$')
+    echo "  sync     PR #$SPR $SYNC -> develop"
+  else
+    echo "  sync     PR #$SPR already open"
+  fi
+  if ! OUT=$(bash "$SCRIPTS/merge-pr.sh" "$SPR" merge 2>&1); then
+    printf '%s\n' "$OUT" | sed 's/^/           /'
+    fail "released $VERSION, but sync PR #$SPR was not merged (likely conflicts with develop): resolve it by hand"
+  fi
+  echo "  merge    PR #$SPR merged into develop"
 fi
-URL=$(gh pr create --base develop --head "$SYNC" --title "chore: bring hotfix $VERSION into develop" \
-      --body "Brings the $VERSION hotfix back into develop." 2>&1) \
-  || fail "released $VERSION, but could not open the sync PR into develop: $URL"
-SPR=$(printf '%s' "$URL" | grep -oE '[0-9]+$')
-echo "  sync     PR #$SPR $SYNC -> develop"
-if ! OUT=$(bash "$SCRIPTS/merge-pr.sh" "$SPR" merge 2>&1); then
-  printf '%s\n' "$OUT" | sed 's/^/           /'
-  fail "released $VERSION, but sync PR #$SPR was not merged (likely conflicts with develop): resolve it by hand"
-fi
-echo "  merge    PR #$SPR merged into develop"
 
-# 5. Local cleanup
+# 6. Local cleanup
 git checkout -q develop 2>/dev/null || git checkout -q -b develop origin/develop
 git pull -q --ff-only --prune origin develop 2>/dev/null
-git branch -q -D "$BRANCH" "$SYNC" 2>/dev/null
+git branch -q -D "$SYNC" 2>/dev/null
+# Local hotfix branches already released (their commits are in main), including
+# the one of a run that was resumed from the sync step.
+for b in $(git branch --format='%(refname:short)' --merged origin/main --list 'hotfix/*'); do
+  git branch -q -D "$b" 2>/dev/null
+done
 echo "HOTFIX RELEASED: $VERSION is on main and the fix is back on develop"
 exit 0
 }

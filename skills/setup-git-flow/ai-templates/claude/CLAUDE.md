@@ -21,9 +21,14 @@ no git at all. Everything below is enough for daily work: do not read
 
 ### Recipes
 
-The scripts live in the `setup-git-flow` skill. Always call them exactly as written
-(the user's permission rule matches that path) and with a 10-minute tool timeout:
-they wait for the CI.
+The scripts live in the `setup-git-flow` skill. Always call them exactly as written:
+the user's permission rule matches that path.
+
+**Scripts that wait for the CI** (`ship.sh` without `--commit-only`, `release.sh vX.Y.Z`,
+`hotfix.sh finish`, `merge-pr.sh`) can take longer than a command timeout. Run them
+**in the background** (`run_in_background`) and wait for the completion notice: do
+not poll, and run no other git command meanwhile. If one is cut off anyway, run the
+same command again: it detects what is already done and continues.
 
 **Save / upload the work** ("commit", "push", "update the repo", "upload today's work"):
 
@@ -78,7 +83,7 @@ matching section of `docs/git-cheatsheet.md`.
 
 **Scripts not installed** (another machine): same plan, by hand: branch from
 `develop`, commit, push, `gh pr create --base develop`, then
-`gh pr checks <n> --watch` (10-minute timeout) and only when green
+`gh pr checks <n> --watch` (in the background) and only when green
 `gh pr merge <n> --squash --delete-branch`; finally `git checkout develop`,
 `git pull --prune`, `git branch -D <branch>`.
 

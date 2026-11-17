@@ -359,8 +359,8 @@ validates it: Conventional Commit, no capitalized first word (acronyms such as
 `README` or `API` are fine), no trailing period, 100 characters max. The commit body
 is empty: the context goes in the PR description, linked by the `(#N)` in the title.
 
-**Always merge with the script** (with a 10-minute tool timeout: it waits for the
-CI). It waits for the checks to register and finish and only merges when green,
+**Always merge with the script**, run in the background (`run_in_background`): it
+waits for the CI, which can outlast a command timeout. It waits for the checks to register and finish and only merges when green,
 without bypassing rules:
 
 ```bash
