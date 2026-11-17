@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install actionlint
         run: |
@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # actionlint checks the syntax of a `uses:` line but never resolves it.
       # This is the job that would have caught astral-sh/setup-uv@v10.
@@ -62,3 +62,36 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/check-action-refs.sh
+
+  convention-sync:
+    name: Commit convention in sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The scripts (lib.sh) and the CI template each carry the commit convention;
+      # if they disagree, the agent ships titles the CI rejects.
+      - name: Compare the scripts' and the CI template's convention
+        run: bash scripts/check-convention-sync.sh
+
+  script-tests:
+    name: Script tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows runs the scripts in Git Bash, as on a user's Windows machine;
+        # macOS catches BSD-only differences in sed, grep, awk and bash 3.2.
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # ship.sh, release.sh, hotfix.sh and friends against a local remote and a
+      # fake gh (tests/fake-gh.sh): their logic, without touching GitHub.
+      - name: Run the setup-git-flow script tests
+        run: bash tests/test-setup-git-flow.sh

@@ -3,7 +3,7 @@
 #
 # Usage:  bash ~/.claude/skills/setup-git-flow/scripts/merge-pr.sh <number> <squash|merge>
 #           squash -> working branch into develop (deletes the branch)
-#           merge  -> develop, hotfix/* or release/* into main, or a chore/sync-*
+#           merge  -> develop or hotfix/* into main, or a chore/sync-*
 #                     branch into develop after a hotfix (merge commit); the
 #                     branch is deleted, except develop
 #
@@ -17,7 +17,8 @@
 # reading the CI before merging, and it lets the user grant ONE permission to the
 # skill's scripts instead of `gh pr merge` on any repository.
 #
-# Run it with a long tool timeout (10 minutes): it waits for the CI to finish.
+# It waits for the CI, which can take longer than a tool timeout: agents run it in
+# the background. Running it again on the same PR is safe.
 
 set -u
 
@@ -33,6 +34,12 @@ case "$MODE" in squash|merge) ;; *)
   echo "Usage: merge-pr.sh <number> <squash|merge>"; exit 1;;
 esac
 [ -n "$PR" ] || { echo "Missing the PR number"; exit 1; }
+
+# Re-run of a run that was cut off after the merge: nothing left to do.
+if [ "$(gh pr view "$PR" --json state --jq .state 2>/dev/null)" = "MERGED" ]; then
+  echo "MERGED: PR #$PR was already merged"
+  exit 0
+fi
 
 # Right after opening the PR the checks do not exist yet, and "no checks" does
 # NOT mean "finished". Count them, without depending on the output text.
@@ -70,7 +77,7 @@ if [ "$MODE" = "squash" ]; then
   ARGS=(--squash --delete-branch)
 else
   ARGS=(--merge)
-  # Every working branch is deleted (hotfix/*, release/*, chore/sync-*), never develop.
+  # Every working branch is deleted (hotfix/*, chore/sync-*), never develop.
   [ "$HEAD_REF" = "develop" ] || ARGS+=(--delete-branch)
 fi
 if ! OUT=$(gh pr merge "$PR" "${ARGS[@]}" 2>&1); then

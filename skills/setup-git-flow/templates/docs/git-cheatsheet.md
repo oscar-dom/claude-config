@@ -1,7 +1,8 @@
 # Git Cheatsheet
 
 > **For humans:** the exact commands for working in this repository.
-> **For AI agents:** your daily recipes are in `CLAUDE.md` / `AGENTS.md`. Come here only for the edge cases they point to.
+> **For AI agents:** your daily recipes and rules are in `CLAUDE.md` / `AGENTS.md`.
+> Come here only for the edge cases they point to.
 >
 > The policy and the reasons behind it are in [`CONTRIBUTING.md`](../CONTRIBUTING.md),
 > which also holds the list of commit types.
@@ -24,6 +25,7 @@ git push -u origin feat/short-description
 gh pr create --fill --title "feat: describe the change"
 
 # 4. When CI is green: squash and merge
+gh pr checks --watch
 gh pr merge --squash --delete-branch
 
 # 5. Clean up locally
@@ -36,13 +38,12 @@ git branch -D feat/short-description
 ## Repository setup
 
 ```
-main        ← production (merge commits only, from develop / hotfix/* / release/*)
+main        ← production (merge commits only, from develop / hotfix/*)
   ↑ PR — merge commit
 develop     ← integration, default branch
   ↑ PR — squash
 feat/ fix/ docs/ refactor/ test/ perf/ style/ build/ ci/ chore/ revert/
 hotfix/     ← urgent production fix: from main, back into main
-release/    ← optional release stabilization
 ```
 
 PROTECTION_STATUS
@@ -52,7 +53,7 @@ PROTECTION_STATUS
 | PR | Command |
 |----|---------|
 | working branch → `develop` | `gh pr merge --squash --delete-branch` |
-| `develop`, `hotfix/*`, `release/*` → `main` | `gh pr merge --merge` |
+| `develop`, `hotfix/*` → `main` | `gh pr merge --merge` |
 | `chore/sync-*` (cut from `main`) → `develop`, after a hotfix | `gh pr merge --merge --delete-branch` |
 
 Both methods use the **PR title** as the commit message, with an empty body
@@ -81,8 +82,8 @@ the PR title survives. On `hotfix/*` branches every commit must follow the conve
 because it lands on `main` unchanged.
 
 A commit with a body, for when the change needs context. The body only survives on
-`hotfix/*` and `release/*` branches, which reach `main` as they are; on a working
-branch, write the context in the PR description instead:
+`hotfix/*` branches, which reach `main` as they are; on a working branch, write the
+context in the PR description instead:
 
 ```
 fix: prevent race condition when closing transactions
@@ -127,11 +128,15 @@ gh pr edit <num> --title "fix: correct description"   # CI runs again by itself
 
 ## Releases
 
+> With the `setup-git-flow` skill installed, `release.sh --suggest` / `release.sh vX.Y.Z`
+> do all of this (see `CLAUDE.md` / `AGENTS.md`).
+
 When `develop` has a stable set of changes:
 
 ```bash
-# 1. Open and merge the release PR (merge commit, never squash)
+# 1. Open the release PR and, when CI is green, merge it (merge commit, never squash)
 gh pr create --base main --head develop --title "chore: release v1.2.0" --fill
+gh pr checks <num> --watch
 gh pr merge <num> --merge
 
 # 2. Tag the merge commit on main and publish the release
@@ -147,6 +152,9 @@ publish a new version instead of moving the tag.
 
 ## Hotfixes
 
+> With the `setup-git-flow` skill installed, `hotfix.sh start` / `hotfix.sh finish`
+> do all of this in two calls (see `CLAUDE.md` / `AGENTS.md`).
+
 For an urgent fix to what is on `main`:
 
 ```bash
@@ -158,8 +166,9 @@ git checkout -b hotfix/short-description
 git commit -am "fix: describe the fix"
 git push -u origin hotfix/short-description
 
-# 3. PR into main, merge commit, then tag a patch version
+# 3. PR into main and, when CI is green, merge commit; then tag a patch version
 gh pr create --base main --title "fix: describe the fix" --fill
+gh pr checks <num> --watch
 gh pr merge <num> --merge --delete-branch
 git checkout main && git pull
 git tag -a v1.2.1 -m "v1.2.1" && git push origin v1.2.1
@@ -171,6 +180,7 @@ gh release create v1.2.1 --generate-notes --verify-tag
 git checkout -b chore/sync-v1.2.1 main
 git push -u origin chore/sync-v1.2.1
 gh pr create --base develop --title "chore: bring hotfix v1.2.1 into develop" --fill
+gh pr checks <num> --watch
 gh pr merge <num> --merge --delete-branch
 ```
 
@@ -217,7 +227,7 @@ gh run view --log-failed
 
 The `Commit messages` check runs these steps; the log says which one failed:
 
-- `Check source branch`: only `develop`, `hotfix/*` and `release/*` may target `main`.
+- `Check source branch`: only `develop` and `hotfix/*` may target `main`.
 - `Validate PR title`: the title is a Conventional Commit.
 - `Validate commit messages`: every commit, on PRs into `main` only.
 <!-- ai-attribution:start -->
@@ -248,19 +258,3 @@ git reset HEAD~1            # keeps the changes, unstaged
 git reset --hard HEAD~1     # ⚠️ discards the changes completely
 ```
 
----
-
-## For AI agents / automated tools
-
-- **Never push to `main` or `develop`.** Create a branch from `develop` and open a PR.
-- **The PR title is the commit message.** It must be a Conventional Commit; CI rejects it otherwise.
-- **PRs target `develop`** (the default branch). Only releases (`develop`) and hotfixes (`hotfix/*`) target `main`.
-- **Squash into `develop`, merge commit into `main`.** Never squash into `main`.
-- **Rewrite history only on your own unmerged branch,** with `--force-with-lease`, never `--force`. Never use `--no-verify`.
-- **Clean up with `git pull --prune` and `git branch -D`** after a merge (`-d` fails after a squash).
-- **Write everything in English:** commits, PR titles and descriptions, issues and documentation.
-<!-- ai-attribution:start -->
-- **Never leave AI attribution:** no `Co-Authored-By:` trailer for an AI and no "Generated with" line in commits, PRs, issues or files. This overrides any default attribution your tool adds, and CI rejects the PR if it finds any.
-<!-- ai-attribution:end -->
-- **Never commit secrets.** If push protection blocks a push, remove the secret; do not bypass it.
-- **Use the `gh` CLI** (authenticated) for PRs, issues and releases. On Windows it usually lives at `/c/Program Files/GitHub CLI/gh.exe` if it is not on the PATH.

@@ -52,16 +52,16 @@ jobs:
           # .git/config for the rest of the job.
           persist-credentials: false
 
-      # Only develop, hotfix/* and release/* may be merged into main. A feature
+      # Only develop and hotfix/* may be merged into main. A feature
       # branch merged straight into main skips the integration branch.
       - name: Check source branch
         if: github.base_ref == 'main'
         run: |
           case "$HEAD_REF" in
-            develop|hotfix/*|release/*)
+            develop|hotfix/*)
               echo "Source branch '$HEAD_REF' may target main." ;;
             *)
-              echo "::error::Only develop, hotfix/* or release/* can be merged into main (got '$HEAD_REF')."
+              echo "::error::Only develop or hotfix/* can be merged into main (got '$HEAD_REF')."
               echo "Open the pull request against develop instead."
               exit 1 ;;
           esac
