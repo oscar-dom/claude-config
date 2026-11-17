@@ -44,7 +44,7 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "not inside a git re
 # and not after a push and a CI run.
 . "$SCRIPTS/lib.sh"
 valid_title "$TITLE" \
-  || fail "title is not a valid Conventional Commit (lowercase start, no final period, max 100): $TITLE"
+  || fail "invalid title \"$TITLE\": $TITLE_RULE"
 
 CURRENT=$(git symbolic-ref --quiet --short HEAD) || fail "detached HEAD: check out a branch first"
 case "$CURRENT" in
@@ -134,6 +134,7 @@ if ! OUT=$(bash "$SCRIPTS/merge-pr.sh" "$PR" squash 2>&1); then
   printf '%s\n' "$OUT" | sed 's/^/           /'
   fail "PR #$PR was not merged (see above); the work is safe on $BRANCH"
 fi
+printf '%s\n' "$OUT" | sed -n 's/^  \(pass\|fail\|skipping\)\t\(.*\)$/  check    \2: \1/p'
 echo "  merge    PR #$PR squashed into develop"
 
 # 6. Local cleanup: back on an up-to-date develop, working branch removed

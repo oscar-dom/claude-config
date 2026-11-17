@@ -1,6 +1,6 @@
 ---
 name: setup-git-flow
-description: Sets up a complete Git Flow lite configuration in a new project. Use it when the user asks to "set up Git Flow", "configure git for this project", "set up branch protection", "initialize the repo with Git Flow", "replicate the Git setup", or starts a project that needs a branching strategy plus PR templates, CI and protection rules. Also answers to the Spanish forms ("configura Git", "monta Git Flow", "protege las ramas", "inicializa el repo con Git Flow"). Creates main/develop with rulesets, merge settings, PR and issue templates, CODEOWNERS, GitHub Actions CI, CONTRIBUTING.md and a git cheatsheet following Conventional Commits, adapting to the user's GitHub plan, to whether an AI will manage the repository, and to an optional "no AI attribution" rule.
+description: Sets up a complete Git Flow lite configuration in a new project. Use it when the user asks to "set up Git Flow", "configure git for this project", "set up branch protection", "initialize the repo with Git Flow", "replicate the Git setup", or starts a project that needs a branching strategy plus PR templates, CI and protection rules. Also answers to the Spanish forms ("configura Git", "monta Git Flow", "protege las ramas", "inicializa el repo con Git Flow"). Creates main/develop with rulesets, merge settings, PR and issue templates, CODEOWNERS, GitHub Actions CI, CONTRIBUTING.md and a git cheatsheet following Conventional Commits, adapting to the user's GitHub plan, to whether an AI will manage the repository (it then gets daily recipes to ship, release and hotfix with one confirmation), and to an optional "no AI attribution" rule.
 ---
 
 # Skill: setup-git-flow
@@ -137,16 +137,14 @@ Detail loaded only when needed:
    then ships it with `ship.sh` (branch, commit, PR, CI, merge, cleanup), releases it
    with `release.sh` (release PR, CI, merge commit, tag, GitHub release) or fixes
    production with `hotfix.sh` (branch from `main`, PR, CI, patch tag, release, and
-   the fix back into `develop`). Tell the
-   user, in the summary, that this needs the skill installed and the permission rule
-   of check 6 on each machine they work from.
+   the fix back into `develop`). Tell the user, in the summary, that this needs the
+   skill installed and the permission rule of check 6 on each machine they work from.
 
    **Question 3, only if answer 2 is an AI: "no AI attribution" rule.** With "people
-   only" do not ask it: it is a **no**, and step 5 removes the rule's blocks.
-   Should the repository forbid AI tools from
-   leaving their mark as collaborators (`Co-Authored-By:` trailers for an AI,
-   "Generated with …" lines, an AI as author or committer)? Describe both options
-   neutrally:
+   only" do not ask it: it is a **no**, and step 5 removes the rule's blocks. Should
+   the repository forbid AI tools from leaving their mark as collaborators
+   (`Co-Authored-By:` trailers for an AI, "Generated with …" lines, an AI as author or
+   committer)? Describe both options neutrally:
 
    - **Yes:** a `Reject AI attribution` step in the required CI check blocks any PR
      that carries it, `CONTRIBUTING.md` and the agent instructions state the rule,
@@ -175,13 +173,13 @@ Detail loaded only when needed:
    `bash ~/.claude/skills/setup-git-flow/scripts/<script>`. With another path the rule
    does not match and the permission prompt comes back.
 
+   The same rule covers `ship.sh`, `release.sh` and `hotfix.sh`, which the AI uses
+   every day in the repository (question 2): with it, daily work needs one
+   confirmation per operation instead of a permission prompt per git command.
+
    - If the rule is missing, **do not add it yourself**: tell the user and ask.
    - **Never grant `gh api -X PATCH repos/<owner>/*`** or similar: it would allow any
      PATCH on any repository, including making it public.
-   The same rule covers `ship.sh`, `release.sh` and `hotfix.sh`, which the AI uses every day in the
-   repository (question 2): with it, daily work needs one confirmation per operation
-   instead of a permission prompt per git command.
-
    - **No permissions inside the project.** The only `.claude/settings.json` the skill
      creates is the one from question 3, and it only turns attribution off:
      permissions belong to each person, not to the repository.
@@ -227,7 +225,7 @@ git commit -m "chore: initial commit"
 gitleaks not installed is a warning (carry on and say so in the summary); gitleaks
 with findings is a **stop**: do not commit.
 
-**Commit messages always in English**, lowercase and imperative, in this step and in
+**Commit messages always in English**, as Conventional Commits, in this step and in
 every other.
 
 **If there is no remote**, create it with the visibility the user chose and push
@@ -343,51 +341,37 @@ The project content went into the initial commit (step 1); the templates go in n
 through a PR. First `git status`: anything unexpected and untracked means step 1 was
 left half done.
 
-Stage **only the paths you copied**, never `git add -A` or whole folders:
+Ship them with `ship.sh`, the same script the AI will use every day (so every setup
+also tests it). Pass **only the paths you copied**, never `.`: the initial commit
+already holds the rest of the project.
 
 ```bash
-git checkout -b chore/git-flow-setup
-git add .github CONTRIBUTING.md docs/git-cheatsheet.md .editorconfig
+bash ~/.claude/skills/setup-git-flow/scripts/ship.sh chore/git-flow-setup "chore: set up git flow" .github CONTRIBUTING.md docs/git-cheatsheet.md .editorconfig
 # plus .gitattributes, CLAUDE.md, .claude/settings.json or AGENTS.md if you copied them
-git commit -m "chore: set up git flow with ci, templates and contributing guide"
-git push -u origin chore/git-flow-setup
-gh pr create --base develop --title "chore: set up git flow" --fill
 ```
 
-**The PR title is the commit message** that will land on `develop`, and the CI
-validates it: Conventional Commit, no capitalized first word (acronyms such as
-`README` or `API` are fine), no trailing period, 100 characters max. The commit body
-is empty: the context goes in the PR description, linked by the `(#N)` in the title.
+Run it **in the background** (`run_in_background`): it waits for the CI, which can
+outlast a command timeout. It creates the branch from `develop`, commits, pushes,
+opens the PR, waits for the checks, squash-merges without bypassing any rule and
+leaves you on an up-to-date `develop` with the branch deleted. The PR title is the
+commit that lands on `develop`, and the CI validates it.
 
-**Always merge with the script**, run in the background (`run_in_background`): it
-waits for the CI, which can outlast a command timeout. It waits for the checks to register and finish and only merges when green,
-without bypassing rules:
+Its last line is `SHIPPED` (exit `0`) or `NOT SHIPPED` and the reason (exit `1`). With
+`1`, **read the output before touching anything** (`references/troubleshooting.md`);
+running the same command again is safe. Keep the checks it reports: they go to the
+summary.
 
-```bash
-bash ~/.claude/skills/setup-git-flow/scripts/merge-pr.sh <number> squash
-```
-
-It prints `MERGED` (exit `0`) or `NOT MERGED` and the reason (exit `1`). With `1`,
-**read the log before touching anything** (`references/troubleshooting.md`). Keep the
-checks it prints: they go to the summary.
-
-Then the first `develop → main` release, with a **merge commit**:
+Then sync `main` with a **merge commit** (also in the background):
 
 ```bash
-git checkout develop
-git pull --prune
 gh pr create --base main --head develop --title "chore: initial git flow setup" --fill
 bash ~/.claude/skills/setup-git-flow/scripts/merge-pr.sh <number> merge
 ```
 
-And remove the local setup branch (after a squash, `-d` does not see it as merged):
-
-```bash
-git branch -D chore/git-flow-setup
-```
+It prints `MERGED` (exit `0`) or `NOT MERGED` and the reason (exit `1`).
 
 No version tag is created: the project decides its first version when it has
-something to release (procedure in the cheatsheet).
+something to release (`release.sh --suggest` proposes it).
 
 ### 7. Document the setup
 

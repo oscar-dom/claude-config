@@ -65,6 +65,9 @@ fi
 VERSION="${1:-}"
 printf '%s' "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail "usage: release.sh --suggest | release.sh vX.Y.Z"
 git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1 && fail "tag $VERSION already exists"
+if [ -n "$LAST" ] && [ "$(printf '%s\n%s\n' "${LAST#v}" "${VERSION#v}" | sort -V | tail -1)" != "${VERSION#v}" ]; then
+  fail "$VERSION is not higher than the current version $LAST"
+fi
 git tag -d "$VERSION" >/dev/null 2>&1   # a local-only tag from a cut-off run: recreated below
 TITLE="chore: release $VERSION"
 
@@ -73,26 +76,26 @@ TITLE="chore: release $VERSION"
 if [ -z "$CHANGES" ] && [ "$(git log -1 --format=%s origin/main)" = "$TITLE" ]; then
   echo "  resume   the release PR was already merged into main"
 else
-[ -n "$CHANGES" ] || fail "develop has nothing that main does not already have"
-[ -z "$(git status --porcelain)" ] || fail "uncommitted changes: ship or set them aside first"
+  [ -n "$CHANGES" ] || fail "develop has nothing that main does not already have"
+  [ -z "$(git status --porcelain)" ] || fail "uncommitted changes: ship or set them aside first"
 
-PR=$(gh pr list --head develop --base main --state open --json number --jq '.[0].number' 2>/dev/null)
-if [ -z "$PR" ]; then
-  BODY=$(printf 'Release %s.\n\n%s\n' "$VERSION" "$(printf '%s\n' "$CHANGES" | sed 's/^/- /')")
-  URL=$(gh pr create --base main --head develop --title "$TITLE" --body "$BODY" 2>&1) \
-    || fail "could not open the release pull request: $URL"
-  PR=$(printf '%s' "$URL" | grep -oE '[0-9]+$')
-  echo "  pr       #$PR opened: $URL"
-else
-  gh pr edit "$PR" --title "$TITLE" >/dev/null 2>&1
-  echo "  pr       #$PR already open, retitled to \"$TITLE\""
-fi
+  PR=$(gh pr list --head develop --base main --state open --json number --jq '.[0].number' 2>/dev/null)
+  if [ -z "$PR" ]; then
+    BODY=$(printf 'Release %s.\n\n%s\n' "$VERSION" "$(printf '%s\n' "$CHANGES" | sed 's/^/- /')")
+    URL=$(gh pr create --base main --head develop --title "$TITLE" --body "$BODY" 2>&1) \
+      || fail "could not open the release pull request: $URL"
+    PR=$(printf '%s' "$URL" | grep -oE '[0-9]+$')
+    echo "  pr       #$PR opened: $URL"
+  else
+    gh pr edit "$PR" --title "$TITLE" >/dev/null 2>&1
+    echo "  pr       #$PR already open, retitled to \"$TITLE\""
+  fi
 
-if ! OUT=$(bash "$SCRIPTS/merge-pr.sh" "$PR" merge 2>&1); then
-  printf '%s\n' "$OUT" | sed 's/^/           /'
-  fail "release PR #$PR was not merged (see above)"
-fi
-echo "  merge    PR #$PR merged into main (merge commit)"
+  if ! OUT=$(bash "$SCRIPTS/merge-pr.sh" "$PR" merge 2>&1); then
+    printf '%s\n' "$OUT" | sed 's/^/           /'
+    fail "release PR #$PR was not merged (see above)"
+  fi
+  echo "  merge    PR #$PR merged into main (merge commit)"
 fi
 
 git fetch -q origin main || fail "merged, but could not fetch main to tag it"

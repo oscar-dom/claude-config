@@ -11,6 +11,9 @@
 CC_PATTERN='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?!?: ([^A-Z[:space:]]|[A-Z][A-Z0-9])(.*[^.[:space:]])?$'
 CC_MAX_LENGTH=100
 
+# What to tell the user when a title is rejected.
+TITLE_RULE="<type>[(scope)][!]: <description>, no capitalized first word (acronyms are fine), no final period, max $CC_MAX_LENGTH characters"
+
 # valid_title "<title>" -> 0 if the title follows the convention.
 valid_title() {
   printf '%s' "$1" | grep -qE "$CC_PATTERN" && [ "${#1}" -le "$CC_MAX_LENGTH" ]

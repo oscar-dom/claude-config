@@ -38,6 +38,14 @@ if [ "$ACTION" = "start" ]; then
   git fetch -q origin main || fail "could not fetch origin/main"
   git checkout -q -b "hotfix/$NAME" origin/main || fail "could not create hotfix/$NAME"
   git branch -q --unset-upstream 2>/dev/null
+  git fetch -q --tags origin 2>/dev/null
+  LAST=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' HEAD 2>/dev/null)
+  if [ -n "$LAST" ]; then
+    IFS=. read -r MA MI PA <<< "${LAST#v}"
+    echo "  version  finish will publish v$MA.$MI.$((PA + 1)) (current: $LAST)"
+  else
+    echo "  version  main has no version tag yet: finish will need --version vX.Y.Z"
+  fi
   echo "HOTFIX STARTED: on hotfix/$NAME, from main ($(git rev-parse --short HEAD)). Write the fix now."
   exit 0
 fi
@@ -73,7 +81,7 @@ if [ "$MODE" = "hotfix" ]; then
     # On main every commit lands as it is, so the title is the commit and must
     # pass the CI (same rule, from lib.sh).
     valid_title "$TITLE" \
-      || fail "title is not a valid Conventional Commit (lowercase start, no final period, max 100): $TITLE"
+      || fail "invalid title \"$TITLE\": $TITLE_RULE"
     if [ -n "$VERSION" ]; then
       printf '%s' "$VERSION" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail "invalid version: $VERSION"
       git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1 && fail "tag $VERSION already exists"

@@ -17,9 +17,9 @@ no git at all. Everything below is enough for daily work: do not read
   without asking again, and end with one or two sentences on what happened.
 - Say "save your changes" and "add them to the development version", not "squash",
   "rebase" or "upstream". Name the branch and the message so the user can object.
-- Stop and explain (no retry loops) only when a script ends in `NOT SHIPPED` or
-  `NOT RELEASED`, or when there are conflicts. Say what happened and the safe next
-  step.
+- Stop and explain (no retry loops) when a script's last line says it did not
+  finish (`NOT SHIPPED`, `NOT RELEASED`, `NOT MERGED`, `HOTFIX NOT DONE`): say what
+  happened and the safe next step. Never work around a failed CI or a conflict.
 
 ### Recipes
 
@@ -39,8 +39,8 @@ same command again: it detects what is already done and continues.
    Leave out what must not be versioned (secrets, local data, build output) and say so.
 2. Choose the type (`feat`, `fix`, `docs`, `refactor`, `test`, `perf`, `style`,
    `build`, `ci`, `chore`), the branch `<type>/<short-kebab-description>` and the title,
-   a Conventional Commit: `feat: validate email on login` (imperative, lowercase start,
-   no final period, max 100 characters, in English). Unrelated changes → one ship per
+   a Conventional Commit in English: `feat: validate email on login` (imperative, no
+   capitalized first word, no final period; `ship.sh` checks it before pushing). Unrelated changes → one ship per
    topic, all in the same plan.
 3. Plan + one question. Then:
    `bash ~/.claude/skills/setup-git-flow/scripts/ship.sh <branch> "<title>" <paths...>`
@@ -75,7 +75,7 @@ same command again: it detects what is already done and continues.
    `bash ~/.claude/skills/setup-git-flow/scripts/hotfix.sh start <short-name>`
    (it refuses with uncommitted work: save that first with `ship.sh --commit-only`).
 2. Write the fix on that branch, then present one plan: the fix, the title (`fix: …`)
-   and the patch version it will publish. Ask once.
+   and the version `start` said it will publish. Ask once.
 3. `bash ~/.claude/skills/setup-git-flow/scripts/hotfix.sh finish "<title>" <paths...>`
    — PR into `main`, CI, merge, patch tag and release, then the fix back into
    `develop`. If its last line says the sync into `develop` failed, the release
