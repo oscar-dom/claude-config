@@ -1,0 +1,12 @@
+# https://editorconfig.org — only the rules that keep diffs clean.
+# Indentation is left to the project and its formatter on purpose.
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# In Markdown, two trailing spaces are a line break.
+[*.md]
+trim_trailing_whitespace = false

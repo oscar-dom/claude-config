@@ -2,7 +2,7 @@ name: CI
 
 # Stack-agnostic on purpose: this workflow makes no assumptions about the
 # language, package manager or tooling the project will use. It only enforces
-# Conventional Commits, which applies to any repository. Add build, lint and test
+# the Git workflow, which applies to any repository. Add build, lint and test
 # jobs here once the project has a stack, and list their job `name:` values as
 # required status checks in the branch rulesets.
 #
@@ -13,6 +13,9 @@ name: CI
 on:
   pull_request:
     branches: [main, develop]
+    # `edited` re-runs the checks when the PR title or description changes:
+    # the title becomes the commit message, so fixing it must re-validate.
+    types: [opened, edited, synchronize, reopened]
 
 permissions:
   contents: read
@@ -21,35 +24,84 @@ jobs:
   commit-lint:
     name: Commit messages
     runs-on: ubuntu-latest
-    # The action lists the PR commits through the API, which needs an explicit
-    # permission: without pull-requests: read the job dies with
-    # "Resource not accessible by integration" before validating anything.
     permissions:
       contents: read
-      pull-requests: read
+    env:
+      BASE_REF: ${{ github.base_ref }}
+      HEAD_REF: ${{ github.head_ref }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      # Title and body go through env vars, never interpolated into a script,
+      # so their content cannot inject shell code.
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_BODY: ${{ github.event.pull_request.body }}
+      # Conventional Commits, as documented in CONTRIBUTING.md:
+      # <type>[(scope)][!]: <description>, lowercase start, no trailing period.
+      CC_PATTERN: '^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?!?: [^A-Z[:space:]](.*[^.[:space:]])?$'
+      CC_MAX_LENGTH: 72
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      # Blocking: a commit that does not follow Conventional Commits fails the PR.
-      # Without a commitlint config in the repository, the action falls back to
-      # @commitlint/config-conventional.
-      - name: Validate Conventional Commits
-        uses: wagoid/commitlint-github-action@v6
+      # Only develop, hotfix/* and release/* may be merged into main. A feature
+      # branch merged straight into main skips the integration branch.
+      - name: Check source branch
+        if: github.base_ref == 'main'
+        run: |
+          case "$HEAD_REF" in
+            develop|hotfix/*|release/*)
+              echo "Source branch '$HEAD_REF' may target main." ;;
+            *)
+              echo "::error::Only develop, hotfix/* or release/* can be merged into main (got '$HEAD_REF')."
+              echo "Open the pull request against develop instead."
+              exit 1 ;;
+          esac
 
-      # Blocking: AI tools must not leave their mark as collaborators (see
-      # CONTRIBUTING.md). Checks every commit in the PR (message, author and
-      # committer) and the PR title and description. The title and body go
-      # through env vars, never interpolated into the script, so their content
-      # cannot inject shell code.
+      # The PR title is the commit message that lands on the base branch: squash
+      # merges into develop and merge commits into main both use it.
+      - name: Validate PR title
+        run: |
+          if ! printf '%s' "$PR_TITLE" | grep -qE "$CC_PATTERN"; then
+            echo "::error::PR title is not a Conventional Commit: $PR_TITLE"
+            echo "Expected: <type>[(scope)]: <description> — lowercase start, no trailing period."
+            echo "Types: build chore ci docs feat fix perf refactor revert style test"
+            exit 1
+          fi
+          if [ "${#PR_TITLE}" -gt "$CC_MAX_LENGTH" ]; then
+            echo "::error::PR title is ${#PR_TITLE} characters long (max $CC_MAX_LENGTH)."
+            exit 1
+          fi
+          echo "PR title OK: $PR_TITLE"
+
+      # Into main, commits land as they are (merge commit, no squash), so each
+      # one must follow the convention too. Into develop they are squashed away
+      # and only the PR title survives, so they are not checked there.
+      - name: Validate commit messages
+        if: github.base_ref == 'main'
+        run: |
+          found=0
+          for sha in $(git rev-list --no-merges "$BASE_SHA..$HEAD_SHA"); do
+            subject=$(git log -1 --format=%s "$sha")
+            case "$subject" in 'Revert "'*) continue ;; esac
+            # Squash commits get " (#123)" appended by GitHub: not part of the title.
+            subject=$(printf '%s' "$subject" | sed -E 's/ \(#[0-9]+\)$//')
+            if ! printf '%s' "$subject" | grep -qE "$CC_PATTERN" || [ "${#subject}" -gt "$CC_MAX_LENGTH" ]; then
+              echo "::error::Commit ${sha:0:7} is not a valid Conventional Commit: $subject"
+              found=1
+            fi
+          done
+          if [ "$found" -ne 0 ]; then
+            echo "Reword the commits (git rebase -i, then git push --force-with-lease)."
+            exit 1
+          fi
+          echo "All commits follow Conventional Commits."
+
+      # AI tools must not leave their mark as collaborators (see CONTRIBUTING.md).
+      # Checks every commit in the PR (message, author and committer) and the PR
+      # title and description, whatever the target branch.
       - name: Reject AI attribution
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           # Match AI identities, not human names: "Claude" alone is also a person's
           # name, so a co-author only counts when it carries an AI email or model.

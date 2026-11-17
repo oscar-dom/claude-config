@@ -157,6 +157,20 @@ else
   fi
 fi
 
+# 8. develop es la rama por defecto (la pone configurar-github.sh)
+if command -v gh >/dev/null 2>&1; then
+  POR_DEFECTO=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null)
+  if [ "$POR_DEFECTO" = "develop" ]; then
+    ok "8. develop es la rama por defecto"
+  elif [ -z "$POR_DEFECTO" ]; then
+    aviso "8. no se pudo leer la rama por defecto"
+  else
+    falta "8. la rama por defecto es $POR_DEFECTO, no develop (reejecuta configurar-github.sh)"
+  fi
+else
+  aviso "8. gh no esta instalado: no se puede comprobar la rama por defecto"
+fi
+
 echo "==================="
 if [ "$FALLOS" -eq 0 ]; then
   echo "CERRADO: no queda ningun merge, push ni rama pendiente."
