@@ -17,7 +17,9 @@
 # Exit:   0 and a last line "SHIPPED ..." / "COMMITTED ..." / "PR OPENED ...",
 #         1 and a last line "NOT SHIPPED: <reason>".
 #
-# Run it with a 10-minute tool timeout: it waits for the CI.
+# It waits for the CI, which can take longer than a tool timeout: agents run it
+# in the background. If it is cut off anyway, running it again is safe: it reuses
+# the open PR, and if the PR was already merged it only does the local cleanup.
 #
 # Why a script: one permission and one tool call instead of ten commands, each
 # with its own permission prompt, and no CI polling from the agent.
@@ -38,15 +40,17 @@ fail() { echo "NOT SHIPPED: $*"; exit 1; }
 [ -n "$BRANCH" ] && [ -n "$TITLE" ] || fail "usage: ship.sh [--commit-only|--pr-only] <branch> \"<title>\" <paths...>"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "not inside a git repository"
 
-# Same rule as the CI, checked here so a bad title fails in a second and not
-# after a push and a CI run.
-CC='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?!?: ([^A-Z[:space:]]|[A-Z][A-Z0-9])(.*[^.[:space:]])?$'
-printf '%s' "$TITLE" | grep -qE "$CC" && [ "${#TITLE}" -le 100 ] \
-  || fail "title is not a valid Conventional Commit (lowercase start, no final period, max 100): $TITLE"
+# Same rule as the CI (lib.sh), checked here so a bad title fails in a second
+# and not after a push and a CI run.
+. "$SCRIPTS/lib.sh"
+valid_title "$TITLE" \
+  || fail "invalid title \"$TITLE\": $TITLE_RULE"
 
 CURRENT=$(git symbolic-ref --quiet --short HEAD) || fail "detached HEAD: check out a branch first"
 case "$CURRENT" in
   main) fail "you are on main: work goes through develop (a production fix is a hotfix, see docs/git-cheatsheet.md)";;
+  hotfix/*) fail "you are on $CURRENT: a hotfix goes to main, finish it with hotfix.sh finish";;
+  chore/sync-*) fail "you are on $CURRENT: it brings a hotfix into develop, finish it with hotfix.sh finish";;
   develop)
     case "$BRANCH" in main|develop) fail "branch name '$BRANCH' is reserved";; esac
     # Check before branching, so "nothing to save" leaves no empty branch behind.
@@ -58,7 +62,16 @@ case "$CURRENT" in
   *)
     [ "$CURRENT" = "$BRANCH" ] || echo "  branch   already on $CURRENT: using it instead of $BRANCH"
     BRANCH="$CURRENT"
-    echo "  branch   $BRANCH";;
+    echo "  branch   $BRANCH"
+    # Resume: a previous run merged the PR and was cut off before the cleanup.
+    DONE=$(gh pr list --head "$BRANCH" --base develop --state merged --json number --jq '.[0].number' 2>/dev/null)
+    if [ -n "$DONE" ] && { [ $# -eq 0 ] || [ -z "$(git status --porcelain -- "$@")" ]; }; then
+      git checkout -q develop || fail "PR #$DONE is merged, but could not switch back to develop"
+      git pull -q --ff-only --prune origin develop || echo "  ?        develop could not fast-forward: run git pull"
+      git branch -q -D "$BRANCH" 2>/dev/null
+      echo "SHIPPED: PR #$DONE was already merged; finished the local cleanup"
+      exit 0
+    fi;;
 esac
 
 # 1. Commit, if the paths bring anything
@@ -121,6 +134,8 @@ if ! OUT=$(bash "$SCRIPTS/merge-pr.sh" "$PR" squash 2>&1); then
   printf '%s\n' "$OUT" | sed 's/^/           /'
   fail "PR #$PR was not merged (see above); the work is safe on $BRANCH"
 fi
+# merge-pr.sh lists the checks as "  <bucket><TAB><name>" (awk: portable to BSD and GNU)
+printf '%s\n' "$OUT" | awk -F '\t' '/^  (pass|fail|skipping)\t/ { sub(/^  /, "", $1); print "  check    " $2 ": " $1 }'
 echo "  merge    PR #$PR squashed into develop"
 
 # 6. Local cleanup: back on an up-to-date develop, working branch removed
