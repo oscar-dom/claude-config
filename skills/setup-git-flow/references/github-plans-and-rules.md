@@ -1,6 +1,6 @@
 # GitHub: plans, settings, rulesets and merge policy
 
-Detail of pre-flight check 5 and step 4 of `SKILL.md`.
+Detail of the setup questions (pre-flight check 5) and step 4 of `SKILL.md`.
 
 ## What each plan includes (personal accounts)
 
@@ -11,13 +11,11 @@ Detail of pre-flight check 5 and step 4 of `SKILL.md`.
 | Secret scanning and push protection | yes | **no** | **no** (needs GitHub Secret Protection, organizations only) |
 | Code readable by anyone | yes | no | no |
 
-Read the plan with `gh api user --jq .plan.name` (`free`, `pro`…). It needs the `user`
-scope: if it comes back empty or `null`, the token lacks it. Do not infer the plan;
-ask the user to run `gh auth refresh -h github.com -s user`, or which plan they have. If the repository
-will be created in an **organization**, the organization's plan is what counts:
-`gh api orgs/<org> --jq .plan.name` (needs a member with permissions; if it does not
-answer, show the full table and say so). In organizations, Team is equivalent to Pro
-for rulesets.
+The plan is always asked (card 1 of the setup questions). Read it first with
+`gh api user --jq .plan.name` (`free`, `pro`…), or for a repository in an organization
+`gh api orgs/<org> --jq .plan.name` (Team is equivalent to Pro for rulesets), and
+offer the detected plan first, marked "(detected)". The `user` scope is needed: if it
+comes back empty or `null`, the token lacks it; ask without a detected option.
 
 How to use it when asking about visibility: show **only the column that applies** to
 each option. On Pro, choosing private keeps branch protection, and that must be said.

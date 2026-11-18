@@ -128,11 +128,17 @@ case "${1:-} ${2:-}" in
   set_field "$f" msha "$(git rev-parse HEAD)";;
 "release create") shift 2; echo "$1" >> "$ST/releases";;
 "api "*)
-  # Only the rulesets' required contexts of a branch; no file = no rulesets
-  # (a private repository on Free answers with an error).
+  # Only the rulesets' required contexts of a branch; no file = no rulesets.
+  # A private repository on Free answers 403, and the real gh prints the error's
+  # JSON body on STDOUT (the message goes to stderr) and exits 1: do the same, or
+  # a script that trusts stdout passes here and fails for real.
   case "${2:-}" in
     *"/rules/branches/"*)
-      [ -f "$ST/required-contexts" ] || { echo "Upgrade to GitHub Pro" >&2; exit 1; }
+      if [ ! -f "$ST/required-contexts" ]; then
+        echo '{"message":"Upgrade to GitHub Pro or make this repository public to enable this feature.","documentation_url":"https://docs.github.com/rest/repos/rules","status":"403"}'
+        echo "gh: Upgrade to GitHub Pro or make this repository public to enable this feature. (HTTP 403)" >&2
+        exit 1
+      fi
       cat "$ST/required-contexts";;
     *) echo "fake gh: unhandled api call: $*" >&2; exit 2;;
   esac;;

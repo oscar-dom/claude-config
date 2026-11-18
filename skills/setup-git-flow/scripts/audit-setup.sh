@@ -211,7 +211,7 @@ fi
 
 if [ "$HAVE_GH" -eq 1 ]; then
   # 10. Merge settings, read back
-  GOT=$(gh api "repos/$REPO" --jq '[.allow_squash_merge, .allow_merge_commit, .allow_rebase_merge, .delete_branch_on_merge, .squash_merge_commit_title, .squash_merge_commit_message, .merge_commit_title, .merge_commit_message] | map(tostring) | join(",")' 2>/dev/null)
+  GOT=$(gh api "repos/$REPO" --jq '[.allow_squash_merge, .allow_merge_commit, .allow_rebase_merge, .delete_branch_on_merge, .squash_merge_commit_title, .squash_merge_commit_message, .merge_commit_title, .merge_commit_message] | map(tostring) | join(",")' 2>/dev/null) || GOT=""   # an error body is not a value
   WANT="true,true,false,true,PR_TITLE,BLANK,PR_TITLE,BLANK"
   if [ "$GOT" = "$WANT" ]; then
     ok "10. merge settings: squash + merge commit, no rebase, PR title, empty body, delete branches"
@@ -249,7 +249,7 @@ if [ "$HAVE_GH" -eq 1 ]; then
   #     the required check, bound to GitHub Actions.
   if [ "$RULESETS_OK" -eq 1 ]; then
     for b in main develop; do
-      RULES=$(gh api "repos/$REPO/rules/branches/$b" --jq '[.[] | if .type == "required_status_checks" then (.parameters.required_status_checks[] | "check:\(.context)@\(.integration_id)") else .type end] | join(" ")' 2>/dev/null)
+      RULES=$(gh api "repos/$REPO/rules/branches/$b" --jq '[.[] | if .type == "required_status_checks" then (.parameters.required_status_checks[] | "check:\(.context)@\(.integration_id)") else .type end] | join(" ")' 2>/dev/null) || RULES=""   # an error body is not a value
       case " $RULES " in
         *" pull_request "*) ok "12. $b: changes only through pull requests" ;;
         *) missing "12. $b: the pull request rule is not in effect" ;;
@@ -263,7 +263,7 @@ if [ "$HAVE_GH" -eq 1 ]; then
 
   # 13. Secret scanning and push protection: free and expected on public
   #     repositories; on private ones they depend on the plan.
-  SEC=$(gh api "repos/$REPO" --jq '[.security_and_analysis.secret_scanning.status, .security_and_analysis.secret_scanning_push_protection.status] | map(tostring) | join(",")' 2>/dev/null)
+  SEC=$(gh api "repos/$REPO" --jq '[.security_and_analysis.secret_scanning.status, .security_and_analysis.secret_scanning_push_protection.status] | map(tostring) | join(",")' 2>/dev/null) || SEC=""   # an error body is not a value
   if [ "$SEC" = "enabled,enabled" ]; then
     ok "13. secret scanning and push protection enabled"
   elif [ "$VIS" = "PUBLIC" ]; then
@@ -275,7 +275,7 @@ if [ "$HAVE_GH" -eq 1 ]; then
   # 14. Default workflow token permissions. Repositories created since 2023 default
   #     to read-only; an older one may still allow write to every workflow that
   #     does not declare `permissions:`. Hardening, not part of the setup: warning.
-  WF=$(gh api "repos/$REPO/actions/permissions/workflow" --jq .default_workflow_permissions 2>/dev/null)
+  WF=$(gh api "repos/$REPO/actions/permissions/workflow" --jq .default_workflow_permissions 2>/dev/null) || WF=""   # an error body is not a value
   if [ "$WF" = "read" ]; then
     ok "14. default workflow token is read-only"
   elif [ -n "$WF" ]; then

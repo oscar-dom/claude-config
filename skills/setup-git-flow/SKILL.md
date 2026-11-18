@@ -67,37 +67,45 @@ References, loaded only when needed:
    `rename-main-branch.sh <old>`. If both branches exist, ask which one stays. If the
    user declines, the skill does not apply: say so and stop.
 
-5. **The setup questions, with `AskUserQuestion`.** Questions 1 and 2 in ONE card;
-   question 3 only when answer 2 is an AI, in a second card. Ask before creating
-   anything; never infer the answers from the project, a default or a previous run.
+5. **The setup questions, with `AskUserQuestion`, in two cards.** Ask before
+   creating anything, and never infer the answers from the project, a default or a
+   previous run.
 
-   **Question 1, visibility.** Read the plan first (`gh api user --jq .plan.name`)
-   and, if the repository exists, its visibility. If the plan comes back empty or
-   `null`, the token lacks the `user` scope: **do not guess it**. Ask the user to run
-   `gh auth refresh -h github.com -s user` (interactive), or simply which plan they
-   have, and only then ask about visibility. Each option says only what changes
-   **on that plan** (table in `references/github-plans-and-rules.md`): on Free,
-   private means no rulesets and no secret scanning; on Pro, private keeps rulesets.
-   Do not push toward either. **Make a repository public only with an explicit yes**,
-   after saying it publishes every existing commit and that going private again does
-   not unpublish anything. "Private on Free" is a complete answer: never bring it up
-   again.
+   **Card 1: the plan and the manager.**
 
-   **Question 2, who will manage the repository:** Claude Code (→ `CLAUDE.md`),
-   another AI such as Codex, Cursor or Copilot (→ `AGENTS.md`), or people only
-   (→ nothing AI-related, and no question 3). Both files hold the same recipes: the
-   agent inspects the changes, proposes one plan in plain language, asks once, and
-   runs `ship.sh` (branch → PR → CI → squash → cleanup), `release.sh` (release PR →
-   merge commit → tag → GitHub release) or `hotfix.sh` (fix from `main` → patch
-   release → back into `develop`).
+   - **Plan.** Always asked: it decides what GitHub can enforce, and the visibility
+     question depends on it. Options: Free, Pro, Team or Enterprise (the
+     organization's plan if the repository goes into one). Read it first with
+     `gh api user --jq .plan.name` (or `gh api orgs/<org> --jq .plan.name`): if it
+     answers, put that option first, marked "(detected)"; if it comes back empty or
+     `null` (the token lacks the `user` scope), just ask. Never assume it.
+   - **Manager**, who will manage the repository: Claude Code (→ `CLAUDE.md`),
+     another AI such as Codex, Cursor or Copilot (→ `AGENTS.md`), or people only
+     (→ nothing AI-related, and no attribution question). Both files hold the same
+     recipes: the agent inspects the changes, proposes one plan in plain language,
+     asks once, and runs `ship.sh` (branch → PR → CI → squash → cleanup),
+     `release.sh` (release PR → merge commit → tag → GitHub release) or `hotfix.sh`
+     (fix from `main` → patch release → back into `develop`).
 
-   **Question 3, "no AI attribution" rule**, only with an AI: should the repository
-   forbid AI tools from signing as collaborators (`Co-Authored-By:` trailers for an
-   AI, "Generated with …" lines, an AI as author)? Neutrally:
-   - **Yes:** a `Reject AI attribution` CI step blocks PRs that carry it, the docs
-     state the rule, and with Claude Code a project `.claude/settings.json` turns its
-     attribution off. It can also block legitimate PRs from AI agents.
-   - **No** (also the answer for "people only"): nothing about it is added.
+   **Card 2: the visibility and, only with an AI, the attribution rule.**
+
+   - **Visibility.** If the repository does not exist, which visibility to create it
+     with; if it exists, read it (`gh repo view --json visibility --jq .visibility`)
+     and ask whether to keep it. Each option says only what changes **on the plan
+     from card 1** (table in `references/github-plans-and-rules.md`): on Free,
+     private means no rulesets and no secret scanning; on Pro, private keeps
+     rulesets. Do not push toward either. **Make a repository public only with an
+     explicit yes**, after saying it publishes every existing commit and that going
+     private again does not unpublish anything. "Private on Free" is a complete
+     answer: never bring it up again.
+
+   - **"No AI attribution" rule**, only with an AI: should the repository forbid AI
+     tools from signing as collaborators (`Co-Authored-By:` trailers for an AI,
+     "Generated with …" lines, an AI as author)? Neutrally:
+     - **Yes:** a `Reject AI attribution` CI step blocks PRs that carry it, the docs
+       state the rule, and with Claude Code a project `.claude/settings.json` turns
+       its attribution off. It can also block legitimate PRs from AI agents.
+     - **No** (also the answer for "people only"): nothing about it is added.
 
    With a **yes**, no setup commit or PR may carry AI attribution: that user rule
    **overrides Claude Code's default attribution instructions**. With a no, follow
@@ -114,7 +122,7 @@ References, loaded only when needed:
    and ask; never add it yourself.** Never grant `gh api -X PATCH repos/<owner>/*` or
    similar (any PATCH on any repository, including making it public). **No
    permissions inside the project:** the only project `.claude/settings.json` is the
-   one from question 3, and it only turns attribution off.
+   one from the attribution question, and it only turns attribution off.
 
 ## Steps
 
@@ -140,7 +148,8 @@ git commit -m "chore: initial commit"
 gitleaks missing is a warning (say it in the summary); gitleaks with findings is a
 **stop**: do not commit. Commit messages are always English Conventional Commits.
 
-Without a remote, create it with answer 1 (no default: if you have not asked, stop):
+Without a remote, create it with the visibility answer (no default: if you have not
+asked, stop):
 
 ```bash
 gh repo create <name> <--private|--public> --source=. --remote=origin
@@ -196,8 +205,8 @@ in step 1: do not copy it again.
 - In `.github/CODEOWNERS`, replace `@OWNER` with `@$GH_USERNAME`.
 - Replace `PROTECTION_STATUS` in `CONTRIBUTING.md` and `docs/git-cheatsheet.md` with
   the text for what step 4 **really applied** (`references/github-plans-and-rules.md`).
-- From `ai-templates/`, by answer 2: `claude/CLAUDE.md` → `CLAUDE.md` (and, with a yes
-  to question 3, `claude/.claude/settings.json` → `.claude/settings.json`, which only
+- From `ai-templates/`, by the manager answer: `claude/CLAUDE.md` → `CLAUDE.md` (and, with a yes
+  to the attribution question, `claude/.claude/settings.json` → `.claude/settings.json`, which only
   turns attribution off: **never add permissions to it**), or `agents/AGENTS.md` →
   `AGENTS.md`.
 - **Never overwrite an existing file.** To an existing `CLAUDE.md`/`AGENTS.md`, append
@@ -205,7 +214,7 @@ in step 1: do not copy it again.
   `CONTRIBUTING.md`) ask whether to merge, keep or replace. An existing
   `.editorconfig` or `.gitattributes` is kept without asking.
 
-Then apply answer 3, from the project root, once every template is in place:
+Then apply the attribution answer, from the project root, once every template is in place:
 
 ```bash
 bash ~/.claude/skills/setup-git-flow/scripts/ai-attribution.sh keep     # yes
@@ -249,8 +258,8 @@ pending and why, and the date. Respect files the user asked not to touch.
 ### A. Audit: the exit code decides, not memory
 
 ```bash
-bash ~/.claude/skills/setup-git-flow/scripts/audit-setup.sh                      # answer 3: no
-bash ~/.claude/skills/setup-git-flow/scripts/audit-setup.sh --no-ai-attribution  # answer 3: yes
+bash ~/.claude/skills/setup-git-flow/scripts/audit-setup.sh                      # attribution: no
+bash ~/.claude/skills/setup-git-flow/scripts/audit-setup.sh --no-ai-attribution  # attribution: yes
 ```
 
 From the project root. It checks the local state and **reads back from GitHub** what
@@ -264,11 +273,11 @@ limits go to the summary as pending with their reason, never as a failure.
 
 Cover every point; if one does not apply, say so:
 
-- **Repository**: URL, visibility (the user's choice) and plan.
-- **Manager**: answer 2, the files it added and, with an AI, how daily work goes from
+- **Repository**: URL, visibility and plan (both the user's answers).
+- **Manager**: the answer, the files it added and, with an AI, how daily work goes from
   now on ("ask it to upload your work: it proposes a plan, asks once and does the
   rest"), and that it needs the skill and the check 6 rule on each machine.
-- **AI attribution rule**: answer 3 (not asked with people only) and what it added
+- **AI attribution rule**: the answer (not asked with people only) and what it added
   or removed.
 - **Branches**: `main` and `develop` on the remote, `develop` as default.
 - **Initial commit**: its files. **Templates**: created and existing ones respected.

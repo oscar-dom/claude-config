@@ -50,8 +50,14 @@ fi
 # otherwise the skill's own required check (private repositories on Free have no
 # rulesets).
 BASE=$(gh pr view "$PR" --json baseRefName --jq .baseRefName 2>/dev/null)
-REQUIRED=$(gh api "repos/{owner}/{repo}/rules/branches/$BASE" \
-  --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | unique | .[]' 2>/dev/null)
+# On an error (403 on a private repository on Free) gh still prints the error's
+# JSON body to stdout: never read it as check names. Taking it for one once made
+# the script wait five minutes for a check called '{"message":...}'.
+if ! REQUIRED=$(gh api "repos/{owner}/{repo}/rules/branches/$BASE" \
+    --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | unique | .[]' 2>/dev/null); then
+  REQUIRED=""
+fi
+REQUIRED=$(printf '%s\n' "$REQUIRED" | grep -v '^[[:space:]]*[{[]' | grep -v '^[[:space:]]*$')
 [ -n "$REQUIRED" ] || REQUIRED="$REQUIRED_CHECK"
 
 # Wait for each REQUIRED check by name, and only for those:
