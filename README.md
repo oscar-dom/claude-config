@@ -88,14 +88,17 @@ Keep using the installer on every *other* machine.
 `.github/workflows/lint-templates.yml` runs on every pull request and push to `main`
 and `develop`. The skills ship files this repository never runs itself (workflow
 templates, scripts that talk to GitHub), so without it they would only be tested
-once a skill had already copied them into a real project.
+once a skill had already copied them into a real project. This is the repository's
+own CI: the projects a skill sets up get their own, much smaller one.
 
 | Job | What it catches |
 |---|---|
-| **actionlint** | workflow syntax, expressions, runner labels, shellcheck over `run:` blocks |
-| **Action refs resolve** (`scripts/check-action-refs.sh`) | a `uses: owner/repo@ref` whose ref does not exist. actionlint only checks the line is well-formed: `astral-sh/setup-uv@v10` passes it and still fails at runtime |
-| **Commit convention in sync** (`scripts/check-convention-sync.sh`) | the commit convention in `setup-git-flow/scripts/lib.sh` drifting from the copy in the CI template, which runs in the user's repository and cannot read the skill |
-| **Script tests** (`tests/test-setup-git-flow.sh`), on Ubuntu, Windows (Git Bash) and macOS | regressions in `setup-git-flow`'s scripts; see below |
+| **Lint** | syntax errors in the workflow templates (actionlint), `uses:` refs that do not exist (`scripts/check-action-refs.sh`), and the commit convention or the required check's name drifting between `setup-git-flow/scripts/lib.sh`, the CI template and the rulesets (`scripts/check-convention-sync.sh`) |
+| **Script tests** (`tests/test-setup-git-flow.sh`), on Ubuntu and Windows (Git Bash) | regressions in `setup-git-flow`'s scripts; see below |
+
+macOS runs the same tests every Monday and on demand (*Actions → Lint templates →
+Run workflow*): its hosted runners can queue for a long time, and a queued job would
+otherwise hold every pull request.
 
 Run the tests locally with `bash tests/test-setup-git-flow.sh`.
 
@@ -179,7 +182,8 @@ continues where it stopped.
 #### How it is tested
 
 `tests/test-setup-git-flow.sh` runs the scripts unchanged against a local remote and a
-fake `gh` that really merges, on Ubuntu, Windows and macOS: 110 checks covering normal
+fake `gh` that really merges, on Ubuntu and Windows on every change and on macOS
+weekly: 110 checks covering normal
 runs, every refusal and resuming after an interruption. They were checked by breaking
 the scripts on purpose. What they cannot cover is GitHub itself (the real `gh`
 output and API): that is confirmed by using the skill on a real repository.
