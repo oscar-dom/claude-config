@@ -193,7 +193,10 @@ fi
 # 9. The templates reached develop complete: the CI exists, and no
 #    ai-attribution marker was left behind (ai-attribution.sh was run).
 if git rev-parse --verify --quiet origin/develop >/dev/null; then
-  if git cat-file -e origin/develop:.github/workflows/ci.yml 2>/dev/null; then
+  # MSYS_NO_PATHCONV only here: Git Bash (Windows) would turn this <rev>:<path>
+  # argument into a Windows path. Not globally: real paths passed to git.exe or
+  # gh.exe (e.g. the rulesets' JSON files) need that conversion.
+  if MSYS_NO_PATHCONV=1 git cat-file -e origin/develop:.github/workflows/ci.yml 2>/dev/null; then
     ok "9. .github/workflows/ci.yml is on develop"
   else
     missing "9. .github/workflows/ci.yml is NOT on develop"

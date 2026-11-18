@@ -11,6 +11,11 @@
 # Test switches, as files in $FAKE_GH_STATE:
 #   ci-red-all   every PR's checks fail        ci-red-<n>  PR <n>'s checks fail
 #   dependabot   lines printed by `gh pr list --author app/dependabot`
+#   late-required  holds a number K: the required check "Commit messages" only
+#                  registers after K queries (another check is there from the
+#                  start and already finished, as GitHub's Dependabot check is)
+#   no-required    the required check never registers
+#   required-red   the required check fails while every check "finishes"
 #
 # Portable on purpose (Linux, macOS, Git Bash on Windows): no `sed -i`, no GNU-only
 # options.
@@ -53,11 +58,26 @@ case "${1:-} ${2:-}" in
   shift 2; n="$1"
   red=0; { [ -f "$ST/ci-red-all" ] || [ -f "$ST/ci-red-$n" ]; } && red=1
   bucket=pass; [ "$red" -eq 1 ] && bucket=fail
+  rbucket=$bucket; [ -f "$ST/required-red" ] && rbucket=fail
+  registered=1
+  if [ -f "$ST/no-required" ]; then registered=0
+  elif [ -f "$ST/late-required" ] && [ "$(cat "$ST/late-required")" -gt 0 ]; then
+    registered=0
+  fi
   if has --watch "$@"; then exit "$red"; fi
   if has --json "$@"; then
     case "$*" in
-      *bucket*) printf '  %s\tCommit messages\n' "$bucket";;
-      *) echo 1;;
+      *select*bucket*) [ "$registered" -eq 1 ] && echo "$rbucket";;
+      *select*)
+        # Only asking for the required check by name makes it register later:
+        # a script that never asks for it never sees the counter reach 0.
+        if [ -f "$ST/late-required" ]; then
+          k=$(cat "$ST/late-required"); [ "$k" -gt 0 ] && echo $((k - 1)) > "$ST/late-required"
+        fi
+        echo "$registered";;
+      *bucket*) printf '  pass\t.github/dependabot.yml\n'
+                [ "$registered" -eq 1 ] && printf '  %s\tCommit messages\n' "$rbucket";;
+      *) echo $((registered + 1));;
     esac
     exit 0
   fi

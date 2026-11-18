@@ -77,7 +77,7 @@ local_has()   { git show-ref --verify --quiet "refs/heads/$1"; }
 remote_has()  { git ls-remote --exit-code --heads origin "$1" >/dev/null 2>&1; }
 tag_remote()  { git ls-remote --exit-code --tags origin "refs/tags/$1" >/dev/null 2>&1; }
 not()         { ! "$@"; }
-on_develop_file() { git fetch -q origin develop && git cat-file -e "origin/develop:$1"; }
+on_develop_file() { git fetch -q origin develop && MSYS_NO_PATHCONV=1 git cat-file -e "origin/develop:$1"; }
 subject_of()  { git fetch -q origin "$1" && [ "$(git log -1 --format=%s "origin/$1")" = "$2" ]; }
 tag_at_main() { git fetch -q --tags origin main && [ "$(git rev-parse "$1^{commit}")" = "$(git rev-parse origin/main)" ]; }
 clean_tree()  { [ -z "$(git status --porcelain)" ]; }
@@ -289,6 +289,34 @@ run bash "$S/merge-pr.sh" 1 squash
 check "a merged PR counts as merged"          last_starts "MERGED"
 check "exits 0"                               rc_is 0
 
+CASE="merge-pr waits for the required check"; world
+git checkout -q -b feat/late; echo l > l.txt; git add l.txt; git commit -q -m "feat: add l"
+git push -q -u origin feat/late 2>/dev/null
+gh pr create --base develop --head feat/late --title "feat: add l" --body x >/dev/null 2>&1
+echo 2 > "$ST/late-required"   # another check is already there and finished
+run env MERGE_PR_POLL=0 bash "$S/merge-pr.sh" 1 squash
+check "waits until 'Commit messages' registers" grep -q '^0$' "$ST/late-required"
+check "then merges"                           last_starts "MERGED"
+
+CASE="merge-pr without the required check"; world
+git checkout -q -b feat/none; echo o > o.txt; git add o.txt; git commit -q -m "feat: add o"
+git push -q -u origin feat/none 2>/dev/null
+gh pr create --base develop --head feat/none --title "feat: add o" --body x >/dev/null 2>&1
+touch "$ST/no-required"
+run env MERGE_PR_MAX_WAIT=1 MERGE_PR_POLL=1 bash "$S/merge-pr.sh" 1 squash
+check "does not merge"                        rc_is 1
+check "names the missing check"               out_has "'Commit messages' check has not appeared"
+check "the PR stays open"                     grep -q '^state=OPEN' "$ST/pr.1"
+
+CASE="merge-pr with the required check red"; world
+git checkout -q -b feat/red; echo e > e.txt; git add e.txt; git commit -q -m "feat: add e"
+git push -q -u origin feat/red 2>/dev/null
+gh pr create --base develop --head feat/red --title "feat: add e" --body x >/dev/null 2>&1
+touch "$ST/required-red"
+run bash "$S/merge-pr.sh" 1 squash
+check "does not merge"                        rc_is 1
+check "says the required check did not pass"  out_has "finished as 'fail'"
+
 # --- ai-attribution.sh ------------------------------------------------------
 for mode in keep remove; do
   CASE="ai-attribution $mode"; world
@@ -309,9 +337,11 @@ done
 # --- audit-setup.sh ---------------------------------------------------------
 CASE="audit"; world
 printf 'x\n<!-- ai-attribution:start -->\n' > CONTRIBUTING.md
-git add CONTRIBUTING.md; git commit -q -m "docs: x"; git push -q origin develop 2>/dev/null
+mkdir -p .github/workflows; echo "name: CI" > .github/workflows/ci.yml
+git add CONTRIBUTING.md .github; git commit -q -m "docs: x"; git push -q origin develop 2>/dev/null
 run bash "$S/audit-setup.sh"
 check "is not closed"                         rc_is 1
+check "finds ci.yml on develop (rev:path, Git Bash)" out_has "OK       9. .github/workflows/ci.yml is on develop"
 check "detects leftover markers"              out_has "ai-attribution markers left"
 check "does not close without GitHub"         out_has "cannot run"
 

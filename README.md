@@ -179,7 +179,7 @@ continues where it stopped.
 #### How it is tested
 
 `tests/test-setup-git-flow.sh` runs the scripts unchanged against a local remote and a
-fake `gh` that really merges, on Ubuntu, Windows and macOS: 91 checks covering normal
+fake `gh` that really merges, on Ubuntu, Windows and macOS: 99 checks covering normal
 runs, every refusal and resuming after an interruption. They were checked by breaking
 the scripts on purpose. What they cannot cover is GitHub itself (the real `gh`
 output and API): that is confirmed by using the skill on a real repository.
