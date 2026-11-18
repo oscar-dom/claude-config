@@ -324,6 +324,13 @@ open_pr() {
   gh pr create --base develop --head "$1" --title "feat: add $2" --body x >/dev/null 2>&1
 }
 
+CASE="merge-pr on a private repo on Free (no rulesets, 403)"; world
+open_pr feat/free f.txt
+run env MERGE_PR_MAX_WAIT=0 MERGE_PR_POLL=0 bash "$S/merge-pr.sh" 1 squash
+check "falls back to 'Commit messages'"        out_has "waiting for 'Commit messages'"
+check "never takes the error body for a check" not out_has "waiting for '{"
+check "merges"                                 last_starts "MERGED"
+
 CASE="merge-pr with GitHub's Dependabot check stuck pending"; world
 open_pr feat/stuck s.txt
 touch "$ST/other-pending"
