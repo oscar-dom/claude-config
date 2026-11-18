@@ -1,4 +1,9 @@
-# Shared by ship.sh, release.sh and hotfix.sh. Sourced, not run.
+# Shared by ship.sh, release.sh, hotfix.sh and merge-pr.sh. Sourced, not run.
+
+# The CI job every PR must pass before merging: the `name:` of the job in the CI
+# template and the `context` of the rulesets. merge-pr.sh waits for it by name.
+# The claude-config CI (scripts/check-convention-sync.sh) checks all three agree.
+REQUIRED_CHECK="Commit messages"
 #
 # The commit convention, in ONE place for the scripts. The CI template
 # (templates/.github/workflows/ci.yml) needs its own copy because it runs in the

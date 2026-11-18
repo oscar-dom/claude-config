@@ -11,7 +11,9 @@ Detail of pre-flight check 5 and step 4 of `SKILL.md`.
 | Secret scanning and push protection | yes | **no** | **no** (needs GitHub Secret Protection, organizations only) |
 | Code readable by anyone | yes | no | no |
 
-Read the plan with `gh api user --jq .plan.name` (`free`, `pro`…). If the repository
+Read the plan with `gh api user --jq .plan.name` (`free`, `pro`…). It needs the `user`
+scope: if it comes back empty or `null`, the token lacks it. Do not infer the plan;
+ask the user to run `gh auth refresh -h github.com -s user`, or which plan they have. If the repository
 will be created in an **organization**, the organization's plan is what counts:
 `gh api orgs/<org> --jq .plan.name` (needs a member with permissions; if it does not
 answer, show the full table and say so). In organizations, Team is equivalent to Pro

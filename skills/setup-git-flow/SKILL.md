@@ -72,7 +72,10 @@ References, loaded only when needed:
    anything; never infer the answers from the project, a default or a previous run.
 
    **Question 1, visibility.** Read the plan first (`gh api user --jq .plan.name`)
-   and, if the repository exists, its visibility. Each option says only what changes
+   and, if the repository exists, its visibility. If the plan comes back empty or
+   `null`, the token lacks the `user` scope: **do not guess it**. Ask the user to run
+   `gh auth refresh -h github.com -s user` (interactive), or simply which plan they
+   have, and only then ask about visibility. Each option says only what changes
    **on that plan** (table in `references/github-plans-and-rules.md`): on Free,
    private means no rulesets and no secret scanning; on Pro, private keeps rulesets.
    Do not push toward either. **Make a repository public only with an explicit yes**,

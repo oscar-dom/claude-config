@@ -23,6 +23,7 @@ set -u
 
 main() {
 SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPTS/lib.sh"
 fail() { echo "HOTFIX NOT DONE: $*"; exit 1; }
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "not inside a git repository"
@@ -68,7 +69,6 @@ case "$BRANCH" in
   *) fail "not on a hotfix/* branch (run: hotfix.sh start <name>)";;
 esac
 git fetch -q --tags origin main develop || fail "could not fetch main and develop"
-. "$SCRIPTS/lib.sh"
 
 # Every step below checks whether a previous, cut-off run already did it, so
 # running `finish` again always continues where it stopped.
