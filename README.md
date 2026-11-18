@@ -116,10 +116,12 @@ English; Claude talks to you in your language.
 
 #### What the setup does
 
-1. **Asks before deciding anything:** the repository's visibility (showing what each
-   option costs on your GitHub plan; there is no default), who will manage it (Claude
-   Code, another AI or people only) and, only with an AI, whether to forbid AI
-   attribution (`Co-Authored-By:` trailers, "Generated with" lines).
+1. **Asks before deciding anything**, in two short cards: your GitHub plan (it
+   detects it when it can, you confirm), who will manage the repository (Claude Code,
+   another AI or people only), its visibility (showing what each option costs on your
+   plan; there is no default) and, only with an AI, whether to forbid AI attribution
+   (`Co-Authored-By:` trailers, "Generated with" lines). It asks in your language;
+   everything it writes into the repository is in English.
 2. **Creates the branches:** `main` and `develop` (the default). If the repository
    already exists with `master`, it asks whether to rename it first.
 3. **Configures GitHub:** squash into `develop`, merge commit into `main`, the PR title
