@@ -26,9 +26,12 @@ set -u
 # it. Without this, `gh pr merge --delete-branch` switches branches, the script
 # file may change or vanish mid-run and bash would read garbage.
 main() {
+SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPTS/lib.sh"   # REQUIRED_CHECK
 PR="${1:-}"
 MODE="${2:-}"
-MAX_WAIT=300   # seconds to wait for the checks to appear
+MAX_WAIT="${MERGE_PR_MAX_WAIT:-300}"   # seconds to wait for the required check to appear
+POLL="${MERGE_PR_POLL:-5}"
 
 case "$MODE" in squash|merge) ;; *)
   echo "Usage: merge-pr.sh <number> <squash|merge>"; exit 1;;
@@ -41,29 +44,38 @@ if [ "$(gh pr view "$PR" --json state --jq .state 2>/dev/null)" = "MERGED" ]; th
   exit 0
 fi
 
-# Right after opening the PR the checks do not exist yet, and "no checks" does
-# NOT mean "finished". Count them, without depending on the output text.
-echo "PR #$PR: waiting for the checks to register..."
+# Wait for the REQUIRED check, by name. "Some check exists" is not enough: other
+# checks can register first and finish before the CI even starts (GitHub adds
+# its own Dependabot config check to PRs that touch .github/dependabot.yml).
+# Counting any check once merged a PR without its CI on a repository with no
+# rulesets, where this script is the only guard.
+echo "PR #$PR: waiting for the '$REQUIRED_CHECK' check to register..."
 t=0
 while :; do
   # gh exits with 8 while checks are pending: ignore its exit code and keep only
   # the number it prints (with `|| echo 0` an extra "0" would sneak in).
-  n=$(gh pr checks "$PR" --json name --jq 'length' 2>/dev/null | head -1 | tr -dc '0-9')
-  n=${n:-0}
-  [ "$n" -gt 0 ] && break
+  n=$(gh pr checks "$PR" --json name --jq "[.[] | select(.name == \"$REQUIRED_CHECK\")] | length" 2>/dev/null | head -1 | tr -dc '0-9')
+  [ "${n:-0}" -gt 0 ] && break
   if [ "$t" -ge "$MAX_WAIT" ]; then
-    echo "NOT MERGED: after ${MAX_WAIT}s the PR still has no checks."
-    echo "Check that .github/workflows/ci.yml exists on the branch."
+    echo "NOT MERGED: after ${MAX_WAIT}s the '$REQUIRED_CHECK' check has not appeared."
+    echo "Check that .github/workflows/ci.yml exists on the branch and its job is named '$REQUIRED_CHECK'."
     exit 1
   fi
-  sleep 5; t=$((t + 5))
+  sleep "$POLL"; t=$((t + POLL))
 done
 
-echo "PR #$PR: $n check(s). Waiting for them to finish..."
+echo "PR #$PR: '$REQUIRED_CHECK' registered. Waiting for every check to finish..."
 if ! gh pr checks "$PR" --watch --interval 10 >/dev/null 2>&1; then
   echo "NOT MERGED: a check failed."
   gh pr checks "$PR" 2>/dev/null | sed 's/^/  /'
   echo "Read the log before changing anything: gh run view --log-failed"
+  exit 1
+fi
+
+# A finished watch is not proof on its own: confirm the required check passed.
+BUCKET=$(gh pr checks "$PR" --json name,bucket --jq ".[] | select(.name == \"$REQUIRED_CHECK\") | .bucket" 2>/dev/null | head -1)
+if [ "$BUCKET" != "pass" ]; then
+  echo "NOT MERGED: '$REQUIRED_CHECK' finished as '${BUCKET:-unknown}', not pass."
   exit 1
 fi
 

@@ -17,6 +17,8 @@
 # ruleset is updated in place, never duplicated.
 
 set -u
+# Git Bash (Windows): never rewrite arguments such as rev:path into Windows paths.
+export MSYS_NO_PATHCONV=1
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO="${1:-$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)}"
 [ -n "$REPO" ] || { echo "Could not determine the repository"; exit 1; }

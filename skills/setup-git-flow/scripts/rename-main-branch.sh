@@ -13,6 +13,8 @@
 # working until they run `git branch -m` (GitHub tells them when they visit).
 
 set -u
+# Git Bash (Windows): never rewrite arguments such as rev:path into Windows paths.
+export MSYS_NO_PATHCONV=1
 
 OLD="${1:-}"
 [ -n "$OLD" ] || { echo "Usage: rename-main-branch.sh <current-branch>"; exit 1; }
