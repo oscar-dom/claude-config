@@ -77,7 +77,7 @@ local_has()   { git show-ref --verify --quiet "refs/heads/$1"; }
 remote_has()  { git ls-remote --exit-code --heads origin "$1" >/dev/null 2>&1; }
 tag_remote()  { git ls-remote --exit-code --tags origin "refs/tags/$1" >/dev/null 2>&1; }
 not()         { ! "$@"; }
-on_develop_file() { git fetch -q origin develop && git cat-file -e "origin/develop:$1"; }
+on_develop_file() { git fetch -q origin develop && MSYS_NO_PATHCONV=1 git cat-file -e "origin/develop:$1"; }
 subject_of()  { git fetch -q origin "$1" && [ "$(git log -1 --format=%s "origin/$1")" = "$2" ]; }
 tag_at_main() { git fetch -q --tags origin main && [ "$(git rev-parse "$1^{commit}")" = "$(git rev-parse origin/main)" ]; }
 clean_tree()  { [ -z "$(git status --porcelain)" ]; }

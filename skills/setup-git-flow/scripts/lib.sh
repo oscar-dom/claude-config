@@ -1,9 +1,5 @@
 # Shared by ship.sh, release.sh, hotfix.sh and merge-pr.sh. Sourced, not run.
 
-# Git Bash (Windows) rewrites arguments that look like paths, such as
-# origin/develop:.github/workflows/ci.yml, into Windows paths. Never for these scripts.
-export MSYS_NO_PATHCONV=1
-
 # The CI job every PR must pass before merging: the `name:` of the job in the CI
 # template and the `context` of the rulesets. merge-pr.sh waits for it by name.
 # The claude-config CI (scripts/check-convention-sync.sh) checks all three agree.

@@ -15,8 +15,6 @@
 # half-removed sentence or orphan CI step is left behind.
 
 set -u
-# Git Bash (Windows): never rewrite arguments such as rev:path into Windows paths.
-export MSYS_NO_PATHCONV=1
 
 MODE="${1:-}"
 case "$MODE" in keep|remove) ;; *)
