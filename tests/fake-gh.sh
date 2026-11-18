@@ -12,10 +12,15 @@
 #   ci-red-all   every PR's checks fail        ci-red-<n>  PR <n>'s checks fail
 #   dependabot   lines printed by `gh pr list --author app/dependabot`
 #   late-required  holds a number K: the required check "Commit messages" only
-#                  registers after K queries (another check is there from the
-#                  start and already finished, as GitHub's Dependabot check is)
+#                  registers after K queries for it
 #   no-required    the required check never registers
-#   required-red   the required check fails while every check "finishes"
+#   required-red   the required check fails
+#   required-pending  holds a number K: the required check is "pending" for K
+#                  queries, then passes
+#   other-pending  GitHub's own ".github/dependabot.yml" check stays pending
+#                  forever (as it does for real); other-red: it fails
+#   required-contexts  lines returned as the base branch's ruleset contexts
+#                  (`gh api .../rules/branches/<b>`); missing = no rulesets
 #
 # Portable on purpose (Linux, macOS, Git Bash on Windows): no `sed -i`, no GNU-only
 # options.
@@ -56,32 +61,47 @@ case "${1:-} ${2:-}" in
 "pr edit") exit 0;;
 "pr checks")
   shift 2; n="$1"
-  red=0; { [ -f "$ST/ci-red-all" ] || [ -f "$ST/ci-red-$n" ]; } && red=1
-  bucket=pass; [ "$red" -eq 1 ] && bucket=fail
-  rbucket=$bucket; [ -f "$ST/required-red" ] && rbucket=fail
-  registered=1
-  if [ -f "$ST/no-required" ]; then registered=0
-  elif [ -f "$ST/late-required" ] && [ "$(cat "$ST/late-required")" -gt 0 ]; then
-    registered=0
+  red=0; { [ -f "$ST/ci-red-all" ] || [ -f "$ST/ci-red-$n" ] || [ -f "$ST/required-red" ]; } && red=1
+  other=pass; [ -f "$ST/other-pending" ] && other=pending; [ -f "$ST/other-red" ] && other=fail
+  # The required check's state: not registered yet (empty), pending, pass or fail.
+  counter_down() { local k; k=$(cat "$1"); [ "$k" -gt 0 ] && { echo $((k - 1)) > "$1"; return 0; }; return 1; }
+  required_state() {
+    if [ -f "$ST/no-required" ]; then echo ""; return; fi
+    if [ -f "$ST/late-required" ] && [ "$(cat "$ST/late-required")" -gt 0 ]; then echo ""; return; fi
+    if [ -f "$ST/required-pending" ] && [ "$(cat "$ST/required-pending")" -gt 0 ]; then echo pending; return; fi
+    if [ "$red" -eq 1 ]; then echo fail; else echo pass; fi
+  }
+  # `gh pr checks --watch` waits for EVERY check: with one stuck pending it never
+  # returns. Make that visible instead of hanging the tests.
+  if has --watch "$@"; then
+    [ "$other" = pending ] && { echo "fake gh: --watch would wait forever on .github/dependabot.yml" >&2; exit 1; }
+    exit "$red"
   fi
-  if has --watch "$@"; then exit "$red"; fi
   if has --json "$@"; then
-    case "$*" in
-      *select*bucket*) [ "$registered" -eq 1 ] && echo "$rbucket";;
-      *select*)
-        # Only asking for the required check by name makes it register later:
-        # a script that never asks for it never sees the counter reach 0.
-        if [ -f "$ST/late-required" ]; then
-          k=$(cat "$ST/late-required"); [ "$k" -gt 0 ] && echo $((k - 1)) > "$ST/late-required"
-        fi
-        echo "$registered";;
-      *bucket*) printf '  pass\t.github/dependabot.yml\n'
-                [ "$registered" -eq 1 ] && printf '  %s\tCommit messages\n' "$rbucket";;
-      *) echo $((registered + 1));;
+    jq=$(opt --jq "$@")
+    case "$jq" in
+      *'select(.name == "'*)
+        name=$(printf '%s' "$jq" | sed 's/.*select(\.name == "\([^"]*\)").*/\1/')
+        # Asking for the required check by name is what makes it register later
+        # or finish: a script that never asks never sees the counters move.
+        if [ "$name" = "Commit messages" ]; then
+          state=$(required_state)
+          [ -f "$ST/late-required" ] && counter_down "$ST/late-required"
+          [ -n "$state" ] && [ -f "$ST/required-pending" ] && counter_down "$ST/required-pending"
+        elif [ "$name" = ".github/dependabot.yml" ]; then state=$other
+        else state=""; fi
+        case "$jq" in
+          *bucket*) [ -n "$state" ] && echo "$state";;
+          *) [ -n "$state" ] && echo 1 || echo 0;;
+        esac;;
+      *bucket*)
+        printf '  %s\t.github/dependabot.yml\n' "$other"
+        state=$(required_state); [ -n "$state" ] && printf '  %s\tCommit messages\n' "$state";;
+      *) echo 2;;
     esac
     exit 0
   fi
-  printf 'Commit messages\t%s\n' "$bucket";;
+  printf 'Commit messages\t%s\n.github/dependabot.yml\t%s\n' "$(required_state)" "$other";;
 "pr view")
   shift 2; n="$1"; [ -f "$ST/pr.$n" ] || { echo "no pull request $n" >&2; exit 1; }
   h=; state=; msha=; . "$ST/pr.$n"
@@ -107,5 +127,14 @@ case "${1:-} ${2:-}" in
   set_field "$f" state MERGED
   set_field "$f" msha "$(git rev-parse HEAD)";;
 "release create") shift 2; echo "$1" >> "$ST/releases";;
+"api "*)
+  # Only the rulesets' required contexts of a branch; no file = no rulesets
+  # (a private repository on Free answers with an error).
+  case "${2:-}" in
+    *"/rules/branches/"*)
+      [ -f "$ST/required-contexts" ] || { echo "Upgrade to GitHub Pro" >&2; exit 1; }
+      cat "$ST/required-contexts";;
+    *) echo "fake gh: unhandled api call: $*" >&2; exit 2;;
+  esac;;
 *) echo "fake gh: unhandled call: $*" >&2; exit 2;;
 esac

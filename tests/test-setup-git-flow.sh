@@ -317,6 +317,46 @@ run bash "$S/merge-pr.sh" 1 squash
 check "does not merge"                        rc_is 1
 check "says the required check did not pass"  out_has "finished as 'fail'"
 
+# open_pr <branch> <file>: a working branch with one commit and its PR into develop
+open_pr() {
+  git checkout -q -b "$1"; echo x > "$2"; git add "$2"; git commit -q -m "feat: add $2"
+  git push -q -u origin "$1" 2>/dev/null
+  gh pr create --base develop --head "$1" --title "feat: add $2" --body x >/dev/null 2>&1
+}
+
+CASE="merge-pr with GitHub's Dependabot check stuck pending"; world
+open_pr feat/stuck s.txt
+touch "$ST/other-pending"
+run env MERGE_PR_POLL=0 bash "$S/merge-pr.sh" 1 squash
+check "merges once the required check passed"  last_starts "MERGED"
+check "says what it did not wait for"          out_has "not waited for: .github/dependabot.yml"
+
+CASE="merge-pr with a non-required check red"; world
+open_pr feat/other o.txt
+touch "$ST/other-red"
+run env MERGE_PR_POLL=0 bash "$S/merge-pr.sh" 1 squash
+check "does not merge"                         rc_is 1
+check "names the failed check"                 out_has ".github/dependabot.yml"
+check "the PR stays open"                      grep -q '^state=OPEN' "$ST/pr.1"
+
+CASE="merge-pr while the required check runs"; world
+open_pr feat/slow w.txt
+echo 3 > "$ST/required-pending"
+run env MERGE_PR_POLL=0 bash "$S/merge-pr.sh" 1 squash
+check "waits for it to finish"                 grep -q '^0$' "$ST/required-pending"
+check "then merges"                            last_starts "MERGED"
+
+CASE="merge-pr with the rulesets' required checks"; world
+open_pr feat/rules r.txt
+printf 'Commit messages\nTests\n' > "$ST/required-contexts"
+run env MERGE_PR_MAX_WAIT=0 MERGE_PR_POLL=0 bash "$S/merge-pr.sh" 1 squash
+check "waits for every required context"       out_has "waiting for 'Tests'"
+check "does not merge without one of them"     rc_is 1
+check "names the missing one"                  out_has "'Tests' check has not appeared"
+printf 'Commit messages\n' > "$ST/required-contexts"
+run env MERGE_PR_POLL=0 bash "$S/merge-pr.sh" 1 squash
+check "merges when they all passed"            last_starts "MERGED"
+
 # --- ai-attribution.sh ------------------------------------------------------
 for mode in keep remove; do
   CASE="ai-attribution $mode"; world
