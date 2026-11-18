@@ -17,6 +17,13 @@
   puts its `if`s at **step** level on purpose: the `Commit messages` job always
   reports.
 
+- **A check stays `pending` forever** (typically `.github/dependabot.yml`, GitHub's
+  own validation of that file on PRs that touch it) → it does not block anything:
+  `merge-pr.sh` only waits for the required checks (the rulesets' contexts, or
+  `Commit messages` without rulesets) and merges when they pass. It lists the
+  pending ones as "not waited for". A check that already **failed** still stops the
+  merge, required or not.
+
 - **PR stuck waiting for `Commit messages` although the CI is green** → the check was
   posted by something other than GitHub Actions, or the ruleset carries an
   `integration_id` other than `15368`. The rulesets only accept the check from Actions.
