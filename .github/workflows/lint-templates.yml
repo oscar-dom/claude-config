@@ -1,15 +1,22 @@
 name: Lint templates
 
-# The workflow templates shipped by the skills live under
-# skills/*/templates/.github/workflows/ and are never executed by this repo —
-# they only run once the skill has copied them into a real project, which is far
-# too late to discover they are broken. These jobs validate them here instead.
+# Checks what the skills ship and this repository never runs itself: the workflow
+# templates copied into users' projects and the scripts that talk to GitHub.
+# Without it they would only be tested once a skill had already set up a real
+# project.
+#
+# Every pull request: one lint job and the script tests on Linux and Windows.
+# macOS runs weekly and on demand: its hosted runners queue for long stretches,
+# and a queued-then-cancelled job would fail every pull request for no reason.
 
 on:
   pull_request:
     branches: [main, develop]
   push:
     branches: [main, develop]
+  schedule:
+    - cron: "17 6 * * 1"   # Mondays, for macOS
+  workflow_dispatch:       # run by hand, e.g. before publishing
 
 permissions:
   contents: read
@@ -18,8 +25,8 @@ env:
   ACTIONLINT_VERSION: 1.7.12
 
 jobs:
-  actionlint:
-    name: actionlint
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -32,6 +39,7 @@ jobs:
           tar -xzf actionlint.tar.gz actionlint
           ./actionlint --version
 
+      # A broken template would break the CI of every project the skill sets up.
       - name: Lint skill workflow templates
         run: |
           mapfile -t files < <(
@@ -49,41 +57,28 @@ jobs:
       - name: Lint this repo's own workflows
         run: ./actionlint -color
 
-  action-refs:
-    name: Action refs resolve
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       # actionlint checks the syntax of a `uses:` line but never resolves it.
-      # This is the job that would have caught astral-sh/setup-uv@v10.
-      - name: Resolve every `uses:` ref against the GitHub API
+      - name: Every `uses:` ref exists
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/check-action-refs.sh
 
-  convention-sync:
-    name: Commit convention in sync
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # The scripts (lib.sh) and the CI template each carry the commit convention;
-      # if they disagree, the agent ships titles the CI rejects.
-      - name: Compare the scripts' and the CI template's convention
+      # The commit convention and the required check's name live in lib.sh, the
+      # CI template and the rulesets; if they disagree, the agent ships titles the
+      # CI rejects or waits for a check that never reports.
+      - name: Commit convention in sync
         run: bash scripts/check-convention-sync.sh
 
   script-tests:
     name: Script tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        # Windows runs the scripts in Git Bash, as on a user's Windows machine;
-        # macOS catches BSD-only differences in sed, grep, awk and bash 3.2.
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Linux and Windows (Git Bash, as on a user's Windows machine) on every
+        # change; macOS (BSD sed/grep/awk, bash 3.2) only weekly or by hand.
+        os: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["ubuntu-latest", "windows-latest", "macos-latest"]' || '["ubuntu-latest", "windows-latest"]') }}
     defaults:
       run:
         shell: bash
