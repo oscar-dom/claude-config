@@ -16,6 +16,7 @@ fi
 mkdir -p "$SKILLS_TARGET"
 
 for skill_dir in "$SKILLS_SOURCE"/*/; do
+  [ -d "$skill_dir" ] || continue   # no skills yet: the glob stays unexpanded
   skill_name="$(basename "$skill_dir")"
   dest="$SKILLS_TARGET/$skill_name"
 
